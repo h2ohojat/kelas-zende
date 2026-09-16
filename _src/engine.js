@@ -17,7 +17,7 @@ function en(s) {
     .replace(/[٫,]/g, '.').trim();
 }
 function norm(s) {
-  return en(s).replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[‌‏\s]+/g, ' ').replace(/[.!؟?،]/g, '').trim().toLowerCase();
+  return en(s).replace(/[ً-ٰٟـ]/g, '').replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[ةۀ]/g, 'ه').replace(/[أإآ]/g, 'ا').replace(/[‌‏\s]+/g, ' ').replace(/[.!؟?،]/g, '').trim().toLowerCase();
 }
 function h(tag, props) {
   var el = document.createElement(tag);
@@ -65,10 +65,18 @@ document.title = L.title + (L.subtitle ? ' — ' + L.subtitle : '');
 var KEY = 'ilesson:' + (L.id || L.title);
 function fresh() {
   return { name: '', mode: 'student', idx: 0, max: 0, res: {}, badges: [], stars: 0, classStars: 0, streak: 0,
-    tags: {}, self: {}, reflect: '', stDone: {}, started: false, best: 0, mute: false };
+    tags: {}, self: {}, reflect: '', stDone: {}, started: false, best: 0, mute: false, time: 0, dwell: {} };
 }
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
-function store() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+var ENGINE_VERSION = '1.1.0';
+var syncTimer = 0;
+function store() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+  if (typeof HOST !== 'undefined' && HOST && HOST.persist) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { post({ ns: 'kelas', v: 1, kind: 'state', session: SESSION, lesson: lessonRef(), state: S }); }, 800);
+  }
+}
 var S = Object.assign(fresh(), load() || {});
 
 var SL = L.slides;
@@ -84,6 +92,98 @@ function isDone(i) { var s = SL[i]; return !gated(s) || !!(S.res[i] && S.res[i].
 var MAXSTARS = SL.reduce(function (t, s) { return t + (SCORED[s.type] && s.stars !== false && s.gate !== false ? 3 : 0); }, 0);
 var CLASSGOAL = L.classGoal || Math.max(3, Math.round(MAXSTARS * 0.7));
 if (S.idx >= SL.length) S.idx = 0;
+
+/* ---------- لایهٔ رویداد یادگیری و پل میزبان (kelas-bridge v1) ---------- */
+var EMBED = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+var STORE_OK = (function () { try { var k = '__kz'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return true; } catch (e) { return false; } })();
+var PARENT_ORIGIN = (function () { try { var a = location.ancestorOrigins; if (a && a.length && a[0] && a[0] !== 'null') return a[0]; } catch (e) {} return '*'; })();
+var HOST = { connected: false, persist: false, learner: null };
+function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function qhash(str) { var x = 5381; str = String(str || ''); for (var i = 0; i < str.length; i++) x = ((x << 5) + x + str.charCodeAt(i)) >>> 0; return x.toString(36); }
+function plain(html) { var d = document.createElement('div'); d.innerHTML = String(html || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); }
+function sid(s) { return s.id || ('s' + s._i); }
+function lessonRef() { return { id: L.id || L.title, version: L.version || 1 }; }
+var SESSION = rid(), SEQ = 0, LOG = [], SLIDE_T0 = Date.now(), LAST_SLIDE = null;
+if (!S.time) S.time = 0;
+if (!S.dwell) S.dwell = {};
+function post(msg) { if (EMBED) try { window.parent.postMessage(msg, PARENT_ORIGIN); } catch (e) {} }
+function emit(type, data) {
+  var cur = SL[S.idx];
+  var ev = { ns: 'kelas', v: 1, kind: 'event', type: type, ts: Date.now(), seq: ++SEQ, session: SESSION,
+    lesson: lessonRef(), mode: S.mode, slide: cur ? sid(cur) : null, data: data || {} };
+  LOG.push(ev); if (LOG.length > 1500) LOG.shift();
+  post(ev);
+  try { window.dispatchEvent(new CustomEvent('kelas:event', { detail: ev })); } catch (e) {}
+  if (typeof L.onEvent === 'function') try { L.onEvent(ev); } catch (e) {}
+}
+function itemTags(s) {
+  var t = [];
+  (s.options || []).forEach(function (o) { tagsOf(o.tag).forEach(function (x) { t.push(x); }); });
+  (s.items || []).forEach(function (o) { if (o && typeof o === 'object') tagsOf(o.tag).forEach(function (x) { t.push(x); }); });
+  (s.wrong || []).forEach(function (o) { tagsOf(o.tag).forEach(function (x) { t.push(x); }); });
+  return t.filter(function (x, k) { return t.indexOf(x) === k; });
+}
+function catalog() {
+  return SL.map(function (s) {
+    var q = plain(s.q || s.title || '');
+    return { id: sid(s), idx: s._i, type: s.type, stage: s.stage, gated: gated(s),
+      scored: !!SCORED[s.type] && s.stars !== false && s.gate !== false,
+      q: q.slice(0, 160), qhash: qhash(q + '|' + (s.options || []).map(function (o) { return plain(o.t); }).join('|')), tags: itemTags(s),
+      options: (s.type === 'mcq' || s.type === 'poll') ? s.options.map(function (o) { return { t: plain(o.t).slice(0, 80), ok: !!o.ok, tag: o.tag || null }; }) : undefined };
+  });
+}
+function hello() {
+  post({ ns: 'kelas', v: 1, kind: 'hello', engine: ENGINE_VERSION, session: SESSION, storage: STORE_OK, caps: ['events', 'state', 'resume', 'commands'],
+    lesson: { id: L.id || L.title, version: L.version || 1, title: L.title, subtitle: L.subtitle || '', grade: L.grade || '', subject: L.subject || '',
+      maxStars: MAXSTARS, objectives: (L.objectives || []).map(plain), stages: STG, tags: L.tags || {}, items: catalog() } });
+}
+function dwellClose() {
+  if (!LAST_SLIDE) return 0;
+  var ms = Math.min(Date.now() - SLIDE_T0, 10 * 60 * 1000);
+  if (!S.dwell) S.dwell = {};
+  S.dwell[LAST_SLIDE] = (S.dwell[LAST_SLIDE] || 0) + ms; S.time = (S.time || 0) + ms;
+  SLIDE_T0 = Date.now();
+  return ms;
+}
+function summary() {
+  var items = {};
+  SL.forEach(function (s) { var r = S.res[s._i]; if (r && gated(s)) items[sid(s)] = { done: !!r.done, tries: r.tries || 0, hints: r.hints || 0, stars: r.stars || 0 }; });
+  return { stars: S.stars, maxStars: MAXSTARS, pct: MAXSTARS ? Math.round(100 * S.stars / MAXSTARS) : 0, badges: S.badges.slice(), tags: S.tags, self: S.self,
+    reflectLength: (S.reflect || '').length, timeMs: S.time || 0, items: items };
+}
+function reportCode() {
+  var items = {};
+  SL.forEach(function (s) { var r = S.res[s._i]; if (r && gated(s)) items[sid(s)] = [r.done ? 1 : 0, r.tries || 0, r.hints || 0, r.stars || 0]; });
+  var o = { k: 'KZ', v: 1, l: L.id || L.title, lv: L.version || 1, s: S.stars, m: MAXSTARS, b: S.badges, t: S.tags, a: S.self, i: items, d: Math.round((S.time || 0) / 1000), ts: Math.round(Date.now() / 1000) };
+  try { return 'KZ1.' + btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); } catch (e) { return ''; }
+}
+window.addEventListener('message', function (e) {
+  if (!EMBED || e.source !== window.parent) return;
+  var m = e.data;
+  if (!m || m.ns !== 'kelas' || m.v !== 1) return;
+  if (PARENT_ORIGIN !== '*' && e.origin !== PARENT_ORIGIN) return;
+  if (m.kind === 'ping') { hello(); return; }
+  if (m.kind === 'init') {
+    HOST.connected = true; HOST.persist = !!m.persist; HOST.learner = m.learner && typeof m.learner === 'object' ? m.learner : null;
+    if (m.state && typeof m.state === 'object' && !S.started) { S = Object.assign(fresh(), m.state); if (S.idx >= SL.length) S.idx = 0; if (!S.dwell) S.dwell = {}; if (!S.time) S.time = 0; }
+    if (HOST.learner && HOST.learner.name && !S.name) S.name = String(HOST.learner.name).slice(0, 60);
+    if (!S.started && (m.mode === 'present' || m.mode === 'student')) S.mode = m.mode;
+    var ov = document.querySelector('.startov'); if (ov) { ov.remove(); startScreen(); }
+    render();
+    emit('host.connected', { persist: HOST.persist, resumed: !!m.state });
+    return;
+  }
+  if (m.kind === 'command') {
+    if (m.command === 'goto' && typeof m.slide === 'number') go(m.slide, true);
+    else if (m.command === 'mode' && (m.mode === 'present' || m.mode === 'student')) setMode(m.mode);
+    else if (m.command === 'summary') post({ ns: 'kelas', v: 1, kind: 'summary', session: SESSION, lesson: lessonRef(), summary: summary() });
+  }
+});
+document.addEventListener('visibilitychange', function () {
+  if (!S.started) return;
+  if (document.hidden) { dwellClose(); emit('session.pause', {}); store(); }
+  else { SLIDE_T0 = Date.now(); emit('session.resume', {}); }
+});
 
 var TYPE_LBL = { mcq: 'پرسش', input: 'پاسخ کوتاه', sort: 'دسته‌بندی', order: 'مرتب‌سازی', poll: 'نظرسنجی', steps: 'مثال حل‌شده', custom: 'فعالیت' };
 var LET = ['الف', 'ب', 'ج', 'د', 'ه', 'و', 'ز', 'ح'];
@@ -189,10 +289,43 @@ function loop() {
   if (!raf) cx.clearRect(0, 0, cv.width, cv.height);
 }
 
+/* ---------- پنجره‌های درون صفحه (در iframe ایزوله confirm و prompt کار نمی‌کنند) ---------- */
+function modal(content, onClose) {
+  var ov = h('div', { class: 'dlgov' });
+  var box = h('div', { class: 'dlg', role: 'dialog', 'aria-modal': 'true' });
+  add(box, content); ov.appendChild(box);
+  var closed = false;
+  function close(v) { if (closed) return; closed = true; ov.remove(); document.removeEventListener('keydown', esc, true); if (onClose) onClose(v); }
+  function esc(e) { if (e.key === 'Escape') { e.stopPropagation(); close(false); } }
+  ov.addEventListener('click', function (e) { if (e.target === ov) close(false); });
+  document.addEventListener('keydown', esc, true);
+  document.body.appendChild(ov); faNodes(box);
+  return close;
+}
+function ask(msg, okText, cancelText) {
+  return new Promise(function (resolve) {
+    var ok = h('button', { class: 'btn', type: 'button', text: okText || 'بله' });
+    var no = h('button', { class: 'btn ghost', type: 'button', text: cancelText || 'انصراف' });
+    var close = modal([h('p', { class: 'lead', html: msg }), h('div', { class: 'row', style: 'justify-content:center' }, ok, no)], resolve);
+    ok.onclick = function () { close(true); }; no.onclick = function () { close(false); };
+    setTimeout(function () { ok.focus(); }, 30);
+  });
+}
+function showText(title, text) {
+  var ta = h('textarea', { class: 'refl', readonly: true, dir: 'rtl', style: 'min-height:180px;font-size:.85em' }); ta.value = text;
+  var cp = h('button', { class: 'btn acc', type: 'button', text: '📋 کپی' });
+  var cl = h('button', { class: 'btn ghost', type: 'button', text: 'بستن' });
+  var close = modal([h('h3', { text: title }), h('p', { class: 'small muted', text: 'اگر کپی خودکار کار نکرد: متن را انتخاب کن (Ctrl+A) و کپی کن (Ctrl+C)؛ روی گوشی، انگشت را روی متن نگه دار.' }), ta, h('div', { class: 'row' }, cp, cl)]);
+  cp.onclick = function () { ta.focus(); ta.select(); var d = false; try { d = document.execCommand('copy'); } catch (e) {} toast(d ? '📋 کپی شد!' : 'متن انتخاب شد؛ حالا کپی کن.'); };
+  cl.onclick = function () { close(false); };
+  setTimeout(function () { ta.focus(); ta.select(); }, 30);
+}
+
 /* ---------- نشان‌ها ---------- */
 function award(id) {
   if (!BADGES[id] || S.badges.indexOf(id) >= 0) return;
   S.badges.push(id); store();
+  emit('badge.award', { badge: id });
   var b = BADGES[id];
   setTimeout(function () { toast('<span class="bi">' + b.i + '</span><span><b>نشان تازه: ' + b.t + '</b><small>' + b.d + '</small></span>', 'badge'); sound('badge'); hud(); }, 900);
 }
@@ -211,10 +344,12 @@ function showFb(ctx, kind, html, stars) {
   if (box.scrollIntoView && box.getBoundingClientRect().bottom > innerHeight - 90) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   return box;
 }
-function wrong(ctx, fb, tag) {
+function latency(ctx) { return ctx.t0 ? Date.now() - ctx.t0 : null; }
+function wrong(ctx, fb, tag, resp) {
   var r = ctx.r, s = ctx.s;
   if (r.done) { showFb(ctx, 'no', fb || s.fb || DEF_NO); return; }
   r.tries++; S.streak = 0;
+  emit('item.attempt', { item: sid(s), type: s.type, correct: false, attempt: r.tries, hints: r.hints, tags: tagsOf(tag), response: resp === undefined ? null : resp, latencyMs: latency(ctx) });
   tagsOf(tag).forEach(function (t) { S.tags[t] = (S.tags[t] || 0) + 1; });
   showFb(ctx, 'no', fb || s.fb || DEF_NO); sound('no');
   if (r.tries >= 2 && s.hints && r.hints < s.hints.length && ctx.hintAdd) {
@@ -222,15 +357,17 @@ function wrong(ctx, fb, tag) {
   }
   store();
 }
-function right(ctx, fb) {
+function right(ctx, fb, resp) {
   var r = ctx.r, s = ctx.s;
   if (r.done) { showFb(ctx, 'ok', fb || s.praise || pick(PRAISE)); return; }
   r.done = true;
+  emit('item.attempt', { item: sid(s), type: s.type, correct: true, attempt: r.tries + 1, hints: r.hints, tags: [], response: resp === undefined ? null : resp, latencyMs: latency(ctx) });
   var st = 3 - Math.min(2, r.tries);
   if (r.hints >= 2) st = Math.min(st, 2);
   if (r.hints >= 3) st = 1;
   if (s.stars === false) st = 0;
   r.stars = st; S.stars += st; if (S.mode === 'present') S.classStars += st;
+  emit('item.complete', { item: sid(s), type: s.type, stars: st, attempts: r.tries + 1, hints: r.hints, latencyMs: latency(ctx) });
   if (r.tries === 0 && r.hints === 0) { S.streak++; if (S.streak >= 3) award('streak'); } else S.streak = 0;
   if (r.tries >= 1) award('detective');
   if (r.tries >= 2) award('persistent');
@@ -242,8 +379,9 @@ function right(ctx, fb) {
   sound('ok'); if (st) floatStars(st, box);
   store(); hud(); navState(); map(); checkStage(s.stage);
 }
-function markDone(ctx) {
+function markDone(ctx, how) {
   if (ctx.r.done) return;
+  emit('item.done', { item: sid(ctx.s), type: ctx.s.type, how: how || 'completed', latencyMs: latency(ctx) });
   ctx.r.done = true; store(); navState(); map(); checkStage(ctx.s.stage);
 }
 function stageDone(id) { return SL.every(function (s) { return s.stage !== id || isDone(s._i); }); }
@@ -252,6 +390,7 @@ function checkStage(id) {
   var qs = SL.filter(function (s) { return s.stage === id && gated(s); });
   if (!qs.length) return;
   S.stDone[id] = true; store();
+  emit('stage.complete', { stage: id });
   var hadHints = qs.some(function (s) { return s.hints && s.hints.length; });
   var used = qs.some(function (s) { return S.res[s._i] && S.res[s._i].hints; });
   if (hadHints && !used) award('independent');
@@ -273,8 +412,8 @@ function hintsUI(ctx) {
     var e = h('div', { class: 'hint' }, h('span', { class: 'hl', text: 'پلهٔ ' + fa(k + 1) + ' · ' + (s.hintLabels ? s.hintLabels[k] : HINT_LBL[k] || 'راهنما') }), h('span', { html: s.hints[k] }));
     faNodes(e); list.appendChild(e);
   }
-  ctx.hintAdd = function () { if (r.hints >= s.hints.length) return; draw(r.hints); r.hints++; store(); lbl(); sound('hint'); };
-  btn.onclick = function () { ctx.hintAdd(); };
+  ctx.hintAdd = function (auto) { if (r.hints >= s.hints.length) return; draw(r.hints); r.hints++; store(); lbl(); sound('hint'); emit('hint.open', { item: sid(s), level: r.hints, auto: auto === true, attempts: r.tries }); };
+  btn.onclick = function () { ctx.hintAdd(false); };
   for (var k = 0; k < r.hints; k++) draw(k);
   lbl();
   return h('div', { class: 'hints' }, btn, list);
@@ -287,7 +426,7 @@ var CUR = null;
 function head(ctx, title, type) {
   var st = stage(ctx.s.stage);
   var k = h('div', { class: 'kicker' }, st ? h('span', { text: st.icon + ' ' + st.title }) : null,
-    TYPE_LBL[type] ? h('span', { class: 'ty', text: TYPE_LBL[type] }) : null,
+    (TYPE_LBL[type] && !ctx.s.noType) ? h('span', { class: 'ty', text: TYPE_LBL[type] }) : null,
     ctx.s.label ? h('span', { class: 'ty', text: ctx.s.label }) : null);
   ctx.card.appendChild(k);
   if (title) ctx.card.appendChild(h(type === 'content' || type === 'end' ? 'h2' : 'h2', { class: type === 'content' ? '' : 'q', html: title }));
@@ -319,15 +458,15 @@ R.mcq = function (ctx) {
   s.options.forEach(function (o, k) {
     var b = h('button', { class: 'opt', type: 'button' }, h('span', { class: 'let', text: LET[k] }), h('span', { class: 'ot', html: o.t }));
     b.onclick = function () {
-      if (r.done) { showFb(ctx, o.ok ? 'ok' : 'no', o.fb || (o.ok ? s.praise : '') || (o.ok ? 'این پاسخ درست است.' : DEF_NO)); return; }
+      if (r.done) { emit('item.explore', { item: sid(s), option: k }); showFb(ctx, o.ok ? 'ok' : 'no', o.fb || (o.ok ? s.praise : '') || (o.ok ? 'این پاسخ درست است.' : DEF_NO)); return; }
       if (r.picked.indexOf(k) < 0) r.picked.push(k);
       if (o.ok) {
         b.classList.add('right');
         btns.forEach(function (x) { x.disabled = S.mode !== 'present'; });
-        right(ctx, o.fb);
+        right(ctx, o.fb, { option: k });
       } else {
         b.classList.add('wrong', 'shake'); b.disabled = S.mode !== 'present';
-        wrong(ctx, o.fb, o.tag);
+        wrong(ctx, o.fb, o.tag, { option: k });
       }
     };
     if (r.picked.indexOf(k) >= 0) { b.classList.add(o.ok ? 'right' : 'wrong'); if (S.mode !== 'present') b.disabled = true; }
@@ -337,7 +476,7 @@ R.mcq = function (ctx) {
   ctx.card.appendChild(grid);
   ctx.reveal = function () {
     s.options.forEach(function (o, k) { if (o.ok) { btns[k].classList.add('right'); showFb(ctx, 'ok', '<b>پاسخ:</b> ' + o.t + (o.fb ? '<br>' + o.fb : '') + (s.explain ? '<div class="explain">' + s.explain + '</div>' : '')); } });
-    markDone(ctx);
+    emit('item.reveal', { item: sid(s) }); markDone(ctx, 'revealed');
   };
   tail(ctx);
 };
@@ -360,6 +499,7 @@ R.poll = function (ctx) {
       b.onclick = function (e) {
         if (e.target === minus) { r.counts[k] = Math.max(0, r.counts[k] - 1); }
         else { r.counts[k]++; sound('tick'); if (o.fb) showFb(ctx, 'info', o.fb); }
+        emit('poll.tally', { item: sid(s), counts: r.counts.slice() });
         markDone(ctx); store(); redraw();
       };
       rows.push({ bar: bar, cnt: cnt }); grid.appendChild(b);
@@ -371,6 +511,7 @@ R.poll = function (ctx) {
       var b = h('button', { class: 'opt' + (r.choice === k ? ' chosen' : ''), type: 'button' }, h('span', { class: 'let', text: LET[k] }), h('span', { class: 'ot', html: o.t }));
       b.onclick = function () {
         r.choice = k; Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('chosen'); }); b.classList.add('chosen');
+        emit('poll.answer', { item: sid(s), option: k, latencyMs: latency(ctx) });
         ctx.keepInfo = true; showFb(ctx, 'info', (o.fb || '') + (s.after ? (o.fb ? '<br>' : '') + s.after : '') || 'ثبت شد ✔'); sound('click');
         markDone(ctx);
       };
@@ -404,8 +545,9 @@ R.input = function (ctx) {
     r.last = vals;
     var out = judge(s, kind, vals);
     if (out.empty) { showFb(ctx, 'info', out.msg || 'اول پاسخت را بنویس 🙂'); return; }
-    if (out.ok) { right(ctx, out.fb); ins.forEach(function (x) { x.disabled = S.mode !== 'present'; }); }
-    else { wrong(ctx, out.fb, out.tag); ins[0].classList.add('shake'); setTimeout(function () { ins[0].classList.remove('shake'); }, 400); }
+    var respv = { value: vals.map(function (v) { return String(v).slice(0, 80); }) };
+    if (out.ok) { right(ctx, out.fb, respv); ins.forEach(function (x) { x.disabled = S.mode !== 'present'; }); }
+    else { wrong(ctx, out.fb, out.tag, respv); ins[0].classList.add('shake'); setTimeout(function () { ins[0].classList.remove('shake'); }, 400); }
   }
   go_.onclick = check;
   ins.forEach(function (x, k) {
@@ -418,7 +560,7 @@ R.input = function (ctx) {
   ctx.reveal = function () {
     var a = s.answerText || (kind === 'fraction' ? '<span class="fr"><b>' + s.answer[0] + '</b><i>' + s.answer[1] + '</i></span>' : String(s.answer));
     showFb(ctx, 'ok', '<b>پاسخ:</b> ' + a + (s.explain ? '<div class="explain">' + s.explain + '</div>' : ''));
-    markDone(ctx);
+    emit('item.reveal', { item: sid(s) }); markDone(ctx, 'revealed');
   };
   tail(ctx);
 };
@@ -502,23 +644,25 @@ R.sort = function (ctx) {
     faNodes(pool); faNodes(bins);
   }
   chk.onclick = function () {
-    var bad = [], tags = [];
+    var bad = [], tags = [], badIdx = [], placed = {};
+    s.items.forEach(function (it, k) { placed[k] = r.place[k]; });
     s.items.forEach(function (it, k) {
       if (r.place[k] === it.bin) r.lock[k] = true;
-      else { bad.push(it); if (it.tag) tags.push(it.tag); delete r.place[k]; }
+      else { bad.push(it); badIdx.push(k); tagsOf(it.tag).forEach(function (x) { tags.push(x); }); delete r.place[k]; }
     });
     draw();
-    if (!bad.length) { right(ctx, s.praise); return; }
+    var respS = { wrongItems: badIdx, placement: placed };
+    if (!bad.length) { right(ctx, s.praise, respS); return; }
     var fb = '<b>' + fa(bad.length) + ' کارت هنوز جای درستش نیست</b> (به ستون‌ها برگشتند):<ul>' +
       bad.map(function (it) { return '<li><b>' + it.t + '</b>' + (it.fb ? ' — ' + it.fb : '') + '</li>'; }).join('') + '</ul>';
-    wrong(ctx, fb, tags);
+    wrong(ctx, fb, tags, respS);
   };
   ctx.card.appendChild(pool); ctx.card.appendChild(bins);
   ctx.card.appendChild(h('div', { class: 'row' }, chk));
   ctx.reveal = function () {
     s.items.forEach(function (it, k) { r.place[k] = it.bin; r.lock[k] = true; }); draw();
     showFb(ctx, 'ok', 'همهٔ کارت‌ها در جای درست قرار گرفتند.' + (s.explain ? '<div class="explain">' + s.explain + '</div>' : ''));
-    markDone(ctx);
+    emit('item.reveal', { item: sid(s) }); markDone(ctx, 'revealed');
   };
   draw();
   tail(ctx);
@@ -551,14 +695,15 @@ R.order = function (ctx) {
     marks = r.ord.map(function (v, k) { return v === k; });
     draw();
     var good = marks.filter(Boolean).length;
-    if (good === n) { right(ctx, s.praise); return; }
+    var respO = { order: r.ord.slice(), correctPositions: good };
+    if (good === n) { right(ctx, s.praise, respO); return; }
     var firstBad = r.ord.filter(function (v, k) { return v !== k; })[0];
     var it = s.items[firstBad];
-    wrong(ctx, fa(good) + ' مورد از ' + fa(n) + ' در جای درست است (سبزها).' + (it && it.fb ? '<br>' + it.fb : (s.fb ? '<br>' + s.fb : '')), it && it.tag);
+    wrong(ctx, fa(good) + ' مورد از ' + fa(n) + ' در جای درست است (سبزها).' + (it && it.fb ? '<br>' + it.fb : (s.fb ? '<br>' + s.fb : '')), it && it.tag, respO);
   };
   if (s.labels) ctx.card.appendChild(h('p', { class: 'muted small', html: '⬆️ ' + s.labels[0] + ' &nbsp; … &nbsp; ⬇️ ' + s.labels[1] }));
   ctx.card.appendChild(ul); ctx.card.appendChild(h('div', { class: 'row' }, chk));
-  ctx.reveal = function () { r.ord = s.items.map(function (_, k) { return k; }); marks = r.ord.map(function () { return true; }); draw(); showFb(ctx, 'ok', 'ترتیب درست نمایش داده شد.' + (s.explain ? '<div class="explain">' + s.explain + '</div>' : '')); markDone(ctx); };
+  ctx.reveal = function () { r.ord = s.items.map(function (_, k) { return k; }); marks = r.ord.map(function () { return true; }); draw(); showFb(ctx, 'ok', 'ترتیب درست نمایش داده شد.' + (s.explain ? '<div class="explain">' + s.explain + '</div>' : '')); emit('item.reveal', { item: sid(s) }); markDone(ctx, 'revealed'); };
   if (r.done) marks = r.ord.map(function (v, k) { return v === k; });
   draw();
   tail(ctx);
@@ -578,9 +723,9 @@ R.steps = function (ctx) {
       var nx = s.steps[r.shown];
       if (nx.think && r.thought <= r.shown) {
         box.appendChild(h('div', { class: 'think', html: '🤔 <b>قبل از دیدن، فکر کن:</b> ' + nx.think }));
-        ctrl.appendChild(h('button', { class: 'btn acc', type: 'button', text: 'فکر کردم؛ نشانم بده 👀', onclick: function () { r.thought = r.shown + 1; r.shown++; store(); sound('click'); draw(); fin(); } }));
+        ctrl.appendChild(h('button', { class: 'btn acc', type: 'button', text: 'فکر کردم؛ نشانم بده 👀', onclick: function () { r.thought = r.shown + 1; r.shown++; emit('steps.reveal', { item: sid(s), step: r.shown, afterThink: true, latencyMs: latency(ctx) }); store(); sound('click'); draw(); fin(); } }));
       } else {
-        ctrl.appendChild(h('button', { class: 'btn', type: 'button', text: r.shown ? 'گام بعدی ←' : 'شروع گام‌به‌گام ←', onclick: function () { r.shown++; r.thought = Math.max(r.thought, r.shown); store(); sound('click'); draw(); fin(); } }));
+        ctrl.appendChild(h('button', { class: 'btn', type: 'button', text: r.shown ? 'گام بعدی ←' : 'شروع گام‌به‌گام ←', onclick: function () { r.shown++; r.thought = Math.max(r.thought, r.shown); emit('steps.reveal', { item: sid(s), step: r.shown, afterThink: false, latencyMs: latency(ctx) }); store(); sound('click'); draw(); fin(); } }));
       }
     } else if (s.outro) box.appendChild(h('div', { class: 'callout ok', html: s.outro }));
     faNodes(box);
@@ -588,7 +733,7 @@ R.steps = function (ctx) {
   }
   function fin() { if (r.shown >= s.steps.length) markDone(ctx); }
   ctx.card.appendChild(box); ctx.card.appendChild(ctrl);
-  ctx.reveal = function () { r.shown = s.steps.length; r.thought = r.shown; draw(); markDone(ctx); };
+  ctx.reveal = function () { r.shown = s.steps.length; r.thought = r.shown; draw(); markDone(ctx, 'revealed'); };
   draw();
   ctx.card.appendChild(ctx.fb);
 };
@@ -600,7 +745,7 @@ R.custom = function (ctx) {
   ctx.card.appendChild(body);
   var a = api(ctx);
   try { s.render(body, a); } catch (e) { body.appendChild(h('div', { class: 'callout warn', text: 'خطا در این فعالیت: ' + e.message })); console.error(e); }
-  if (s.reveal || s.answerText) ctx.reveal = function () { if (s.reveal) s.reveal(a); else showFb(ctx, 'ok', s.answerText); markDone(ctx); };
+  if (s.reveal || s.answerText) ctx.reveal = function () { if (s.reveal) s.reveal(a); else showFb(ctx, 'ok', s.answerText); emit('item.reveal', { item: sid(s) }); markDone(ctx, 'revealed'); };
   tail(ctx);
 };
 function api(ctx) {
@@ -608,9 +753,10 @@ function api(ctx) {
   return {
     el: ctx.card, state: r.state || (r.state = {}), save: store, mode: S.mode, lesson: L,
     isDone: function () { return !!r.done; },
-    right: function (fb) { right(ctx, fb); }, wrong: function (fb, tag) { wrong(ctx, fb, tag); },
+    right: function (fb, resp) { right(ctx, fb, resp); }, wrong: function (fb, tag, resp) { wrong(ctx, fb, tag, resp); },
+    emit: function (type, data) { emit('custom.' + String(type || 'event'), Object.assign({ item: sid(ctx.s) }, data || {})); },
     info: function (html) { showFb(ctx, 'info', html); }, done: function () { markDone(ctx); },
-    tag: function (t) { tagsOf(t).forEach(function (x) { S.tags[x] = (S.tags[x] || 0) + 1; }); store(); },
+    tag: function (t) { tagsOf(t).forEach(function (x) { S.tags[x] = (S.tags[x] || 0) + 1; }); emit('item.tag', { item: sid(ctx.s), tags: tagsOf(t) }); store(); },
     fa: fa, en: en, h: h, faNodes: faNodes, sound: sound, confetti: confetti, toast: toast,
     get: function (id) { for (var i = 0; i < SL.length; i++) if (SL[i].id === id) return S.res[i] || null; return null; },
     name: S.name
@@ -621,6 +767,7 @@ function api(ctx) {
 R.end = function (ctx) {
   var s = ctx.s;
   award('finisher');
+  if (!S.completed) { S.completed = true; dwellClose(); emit('lesson.complete', summary()); store(); }
   var nm = S.name ? S.name + '، ' : '';
   head(ctx, s.title || ('🎉 ' + nm + 'به مقصد رسیدی!'), 'end');
   var pct = MAXSTARS ? Math.round(100 * S.stars / MAXSTARS) : 0;
@@ -650,12 +797,12 @@ R.end = function (ctx) {
   var objs = L.objectives || [];
   if (objs.length) {
     ctx.card.appendChild(h('h3', { text: '🪞 خودت را ارزیابی کن' }));
-    var EMO = [['😟', 'هنوز نه'], ['🙂', 'کمی'], ['😀', 'خوب'], ['🤩', 'می‌توانم به دوستم یاد بدهم']];
+    var EMO = L.selfLabels || [['😟', 'هنوز نه'], ['🙂', 'کمی'], ['😀', 'خوب'], ['🤩', 'می‌توانم به دوستم یاد بدهم']];
     objs.forEach(function (o, k) {
       var row = h('div', { class: 'selfrow' }, h('span', { class: 'o', html: o }));
       EMO.forEach(function (e, j) {
         var b = h('button', { class: 'emo' + (S.self[k] === j ? ' on' : ''), type: 'button', title: e[1], text: e[0] + ' ' + e[1] });
-        b.onclick = function () { S.self[k] = j; store(); Array.prototype.forEach.call(row.querySelectorAll('.emo'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); sound('click');
+        b.onclick = function () { S.self[k] = j; emit('self.assess', { objective: k, level: j, of: EMO.length }); store(); Array.prototype.forEach.call(row.querySelectorAll('.emo'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); sound('click');
           if (objs.every(function (_, q) { return S.self[q] != null; })) award('reflector'); };
         row.appendChild(b);
       });
@@ -665,14 +812,18 @@ R.end = function (ctx) {
   ctx.card.appendChild(h('h3', { text: '✍️ ' + (s.prompt || 'امروز یاد گرفتم که…') }));
   var ta = h('textarea', { class: 'refl', placeholder: 'یک یا دو جمله بنویس…' }); ta.value = S.reflect || '';
   ta.oninput = function () { S.reflect = ta.value; store(); };
+  ta.onchange = function () { emit('reflect.submit', { text: String(ta.value || '').slice(0, 2000), length: (ta.value || '').length }); };
   ctx.card.appendChild(ta);
   if (s.html) ctx.card.appendChild(h('div', { html: s.html, style: 'margin-top:12px' }));
 
-  var copyBtn = h('button', { class: 'btn acc', type: 'button', text: '📋 کپی گزارش برای معلم', onclick: function () { copyText(report()); } });
+  var copyBtn = h('button', { class: 'btn acc', type: 'button', text: '📋 کپی گزارش برای معلم', onclick: function () { emit('report.copy', {}); copyText(report()); } });
   var again = h('button', { class: 'btn ghost', type: 'button', text: '🔄 شروع دوباره (رکوردت می‌ماند)', onclick: function () {
-    if (!confirm('همهٔ پاسخ‌ها پاک شود و از اول شروع کنی؟')) return;
-    var keep = { name: S.name, mode: S.mode, best: Math.max(S.best || 0, S.stars), mute: S.mute };
-    S = Object.assign(fresh(), keep, { started: true }); store(); go(0, true);
+    ask('همهٔ پاسخ‌ها پاک شود و از اول شروع کنی؟', 'بله، از اول', 'نه').then(function (yes) {
+      if (!yes) return;
+      emit('session.restart', { previous: summary() });
+      var keep = { name: S.name, mode: S.mode, best: Math.max(S.best || 0, S.stars), mute: S.mute };
+      S = Object.assign(fresh(), keep, { started: true, time: 0, dwell: {} }); LAST_SLIDE = null; store(); go(0, true);
+    });
   } });
   ctx.card.appendChild(h('div', { class: 'row' }, copyBtn, again));
   if (S.stars > (S.best || 0)) { S.best = S.stars; store(); }
@@ -689,6 +840,7 @@ function report() {
   if (S.reflect) lines.push('✍️ ' + S.reflect);
   var d = ''; try { d = new Date().toLocaleDateString('fa-IR'); } catch (e) {}
   lines.push('🗓 ' + d);
+  if (L.reportCode !== false) { var code = reportCode(); if (code) lines.push('🔑 کد گزارش: ' + code); }
   return lines.join('\n');
 }
 function copyText(t) {
@@ -696,7 +848,7 @@ function copyText(t) {
   var fallback = function () {
     var ta = h('textarea', { style: 'position:fixed;top:0;opacity:0' }); ta.value = t; document.body.appendChild(ta); ta.select();
     var done = false; try { done = document.execCommand('copy'); } catch (e) {}
-    ta.remove(); if (done) ok(); else prompt('این متن را کپی کن:', t);
+    ta.remove(); if (done) ok(); else showText('📋 متن گزارش', t);
   };
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(ok, fallback); else fallback();
 }
@@ -724,7 +876,7 @@ function timerWidget(ctx) {
   TMR.paint = paint; paint();
   return box;
 }
-function startT() { TMR.run = true; TMR.end = Date.now() + TMR.left * 1000; clearInterval(TMR.iv); TMR.iv = setInterval(tickT, 250); }
+function startT() { emit('class.timer', { item: TMR.slide != null && SL[TMR.slide] ? sid(SL[TMR.slide]) : null, seconds: Math.round(TMR.left) }); TMR.run = true; TMR.end = Date.now() + TMR.left * 1000; clearInterval(TMR.iv); TMR.iv = setInterval(tickT, 250); }
 function stopT() { if (TMR.run) TMR.left = Math.max(0, (TMR.end - Date.now()) / 1000); TMR.run = false; clearInterval(TMR.iv); timeChip.classList.add('hide'); }
 function tickT() {
   var left = (TMR.end - Date.now()) / 1000;
@@ -736,6 +888,7 @@ function tickT() {
 
 /* ---------- تایمر فکر ---------- */
 function think(sec) {
+  emit('class.think', { seconds: sec });
   var t0 = Date.now(), tv = h('div', { class: 'tv' });
   var ring = h('div', { class: 'thinkring' }, tv, h('div', { text: 'فکر کنید… 🤔' }), h('small', { text: '(برای بستن کلیک کنید)', style: 'opacity:.7;font-weight:400' }));
   var ov = h('div', { class: 'thinkov' }, ring);
@@ -753,7 +906,7 @@ function think(sec) {
 
 /* ---------- ناوبری و رابط ---------- */
 function setMode(m) {
-  S.mode = m; store();
+  S.mode = m; store(); emit('mode.change', { mode: m });
   toast(m === 'present' ? '🧑‍🏫 حالت ارائه: همهٔ مراحل باز است · کلیدها: ← بعدی، → قبلی، T تایمر فکر، N یادداشت، F تمام‌صفحه' : '🎒 حالت دانش‌آموز: مرحله‌ها یکی‌یکی باز می‌شوند');
   render();
 }
@@ -815,14 +968,19 @@ function go(i, force) {
 function resetSlide(i) {
   var r = S.res[i];
   if (r && r.stars && S.mode !== 'present') { S.stars = Math.max(0, S.stars - r.stars); }
-  delete S.res[i]; store(); render(); toast('↺ این اسلاید از نو شروع شد');
+  delete S.res[i]; emit('item.reset', { item: sid(SL[i]) }); store(); render(); toast('↺ این اسلاید از نو شروع شد');
 }
 function render() {
   var s = SL[S.idx];
+  if (S.started && LAST_SLIDE !== sid(s)) {
+    var from = LAST_SLIDE, dwell = dwellClose();
+    LAST_SLIDE = sid(s); SLIDE_T0 = Date.now();
+    emit('slide.view', { item: sid(s), type: s.type, stage: s.stage, index: s._i, from: from, prevDwellMs: from ? dwell : null });
+  }
   main.innerHTML = '';
   var card = h('section', { class: 'slide t-' + s.type });
   var r = (gated(s) || s.type === 'custom') ? res(S.idx) : { tries: 0, hints: 0, done: true, stars: 0 };
-  var ctx = { s: s, i: S.idx, r: r, card: card, fb: h('div', { class: 'fbwrap', 'aria-live': 'polite' }) };
+  var ctx = { s: s, i: S.idx, r: r, card: card, fb: h('div', { class: 'fbwrap', 'aria-live': 'polite' }), t0: Date.now() };
   CUR = ctx;
   (R[s.type] || R.content)(ctx);
   main.appendChild(card); faNodes(card);
@@ -853,18 +1011,22 @@ function startScreen() {
   function begin(mode, restart) {
     S.name = nameIn.value.trim();
     if (restart) { var keep = { name: S.name, best: Math.max(S.best || 0, S.stars), mute: S.mute }; S = Object.assign(fresh(), keep); }
-    S.mode = mode; S.started = true; store(); ov.remove(); actx(); render();
+    S.mode = mode; S.started = true; LAST_SLIDE = null; SLIDE_T0 = Date.now();
+    emit('session.start', { resume: !!resume && !restart, restart: !!restart, embedded: EMBED, hostPersist: HOST.persist, storage: STORE_OK, learner: HOST.learner ? HOST.learner.id || null : null });
+    store(); ov.remove(); actx(); render();
     if (mode === 'present') toast('🧑‍🏫 حالت ارائه · کلیدها: ← بعدی، → قبلی، T تایمر فکر، N یادداشت، F تمام‌صفحه');
   }
   var modes = h('div', { class: 'modes' },
     resume ? h('button', { class: 'modebtn primary', type: 'button', onclick: function () { begin(S.mode || 'student'); } }, h('span', { class: 'e', text: '▶️' }), h('b', { text: 'ادامه از جایی که بودی' }), h('small', { text: 'اسلاید ' + fa(S.idx + 1) + ' از ' + fa(SL.length) + ' · ' + fa(S.stars) + ' ستاره' })) : null,
-    h('button', { class: 'modebtn' + (resume ? '' : ' primary'), type: 'button', onclick: function () { begin('student', resume); } }, h('span', { class: 'e', text: '🎒' }), h('b', { text: resume ? 'شروع دوباره (دانش‌آموز)' : 'شروع یادگیری' }), h('small', { text: 'با سرعت خودت؛ مرحله‌ها یکی‌یکی باز می‌شوند' })),
-    h('button', { class: 'modebtn', type: 'button', onclick: function () { begin('present', resume); } }, h('span', { class: 'e', text: '🧑‍🏫' }), h('b', { text: 'حالت ارائه (معلم)' }), h('small', { text: 'برای ویدئوپروژکتور؛ همهٔ مراحل باز' })));
+    h('button', { class: 'modebtn' + (resume ? '' : ' primary'), type: 'button', onclick: function () { begin('student', resume); } }, h('span', { class: 'e', text: '🎒' }), h('b', { text: resume ? 'شروع دوباره' : (L.startStudent || 'شروع یادگیری') }), h('small', { text: L.startStudentNote || 'با سرعت خودت؛ مرحله‌ها یکی‌یکی باز می‌شوند' })),
+    h('button', { class: 'modebtn', type: 'button', onclick: function () { begin('present', resume); } }, h('span', { class: 'e', text: '🧑‍🏫' }), h('b', { text: L.startPresent || 'حالت ارائه (معلم)' }), h('small', { text: L.startPresentNote || 'برای ویدئوپروژکتور؛ همهٔ مراحل باز' })));
   var meta = h('div', { class: 'meta' }, [L.grade, L.subject, L.duration].filter(Boolean).map(function (m) { return h('span', { class: 'tag', text: m }); }));
   var card = h('div', { class: 'startcard' },
     h('div', { class: 'm', text: L.mascot || '📘' }), h('h1', { text: L.title }), L.subtitle ? h('p', { class: 'sub', text: L.subtitle }) : null, meta,
     L.intro ? h('div', { class: 'center', html: L.intro }) : null,
     (L.objectives && L.objectives.length) ? h('div', null, h('b', { text: '🎯 در پایان این درس می‌توانی:' }), h('ul', { class: 'obj' }, L.objectives.map(function (o) { return h('li', { html: o }); }))) : null,
+    (!STORE_OK && !HOST.persist) ? h('div', { class: 'callout warn small', text: '⚠️ در این صفحه پیشرفتت ذخیره نمی‌شود؛ اگر صفحه را ببندی، درس از اول شروع می‌شود. بهتر است درس را در یک نشست تمام کنی.' }) : null,
+    HOST.persist ? h('div', { class: 'callout ok small', text: '☁️ پیشرفتت در حساب کاربری‌ات ذخیره می‌شود.' }) : null,
     nameIn, modes,
     h('p', { class: 'center muted small', style: 'margin-top:14px', html: L.credit || 'ساخته‌شده با موتور «کلاس زنده» · بدون نیاز به اینترنت' }));
   var ov = h('div', { class: 'startov' }, card);
@@ -877,5 +1039,7 @@ hud();
 if (/#present/.test(location.hash)) { S.mode = 'present'; S.started = true; render(); }
 else if (L.noStart) { S.started = true; render(); }
 else { render(); startScreen(); }
-window.IL = { go: go, state: function () { return S; }, fa: fa, en: en, h: h, toast: toast, confetti: confetti, sound: sound, copy: copyText };
+hello();
+window.IL = { go: go, state: function () { return S; }, fa: fa, en: en, h: h, toast: toast, confetti: confetti, sound: sound, copy: copyText,
+  ask: ask, showText: showText, emit: emit, events: function () { return LOG.slice(); }, summary: summary, reportCode: reportCode, catalog: catalog, version: ENGINE_VERSION };
 })();

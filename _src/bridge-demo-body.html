@@ -1,0 +1,38 @@
+<style>
+.hostwrap{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);padding:14px 16px 24px}
+@media (max-width:980px){.hostwrap{grid-template-columns:1fr}}
+.hostwrap iframe{display:block;width:100%;height:78vh;border:0;border-radius:16px;background:#fff;box-shadow:var(--shadow)}
+.panel{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.panel h3{margin:.1em 0 .4em}
+.tagrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:8px;align-items:center;margin:4px 0;font-size:.9em}
+.barw{height:10px;background:var(--line);border-radius:99px;overflow:hidden}
+.barw i{display:block;height:100%;background:linear-gradient(90deg,var(--a),#e0663a)}
+#log{max-height:220px;overflow:auto;font-size:.8em}
+.ev{border-bottom:1px dashed var(--line);padding:2px 0}
+.ev code{direction:ltr;unicode-bidi:isolate;background:var(--p-soft);border-radius:6px;padding:0 6px}
+#codeOut{direction:ltr;text-align:left;background:#0f172a;color:#e2e8f0;border-radius:12px;padding:10px;max-height:220px;overflow:auto;font-size:.75em;white-space:pre-wrap}
+.ctl{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.ctl label{display:inline-flex;gap:6px;align-items:center}
+</style>
+<header class="topbar"><div class="brand"><span class="mascot">🛰️</span><div><b>میزبان نمونهٔ کلاس زنده</b><small>پل kelas-bridge v1 · نمونهٔ اولیهٔ پنل یادگیری</small></div></div>
+  <div class="ctl" style="margin-inline-start:auto">
+    <select id="lessonSel" class="tin wide" style="width:auto"></select>
+    <label><input type="checkbox" id="sbChk"> قاب ایزوله (مثل پای‌آموز)</label>
+    <label><input type="checkbox" id="psChk"> ذخیرهٔ پیشرفت در میزبان</label>
+  </div>
+</header>
+<div class="hostwrap">
+  <div id="stageBox"></div>
+  <div>
+    <div class="panel"><div id="conn" class="small">⏳ در انتظار سلامِ درس…</div><div id="count" class="small muted"></div></div>
+    <div class="panel"><h3>🧭 مسیر و نقاط دشوار</h3><div class="tablewrap" id="items"></div>
+      <p class="small muted">«گیر کرده» = سه تلاش یا بیشتر بدون موفقیت. «نقطهٔ دشوار» = هیچ پاسخ درستی در تلاش اول. «تلهٔ پرتکرار» = گزینهٔ نادرستی که بیشتر انتخاب شده.</p></div>
+    <div class="panel"><h3>🪤 بدفهمی‌های ثبت‌شده</h3><div id="tags"></div></div>
+    <div class="panel"><h3>📡 جریان رویدادها (آخرین ۴۰)</h3><div id="log"></div></div>
+    <div class="panel"><h3>🔑 خواندن «کد گزارش»</h3>
+      <p class="small muted">متن گزارشی را که دانش‌آموز از پیام‌رسان فرستاده اینجا بچسبانید.</p>
+      <textarea id="codeIn" class="refl" style="min-height:70px" placeholder="…🔑 کد گزارش: KZ1.…"></textarea>
+      <div class="row"><button class="btn" id="decodeBtn" type="button">خواندن کد</button><button class="btn ghost" id="clearBtn" type="button">پاک کردن پیشرفت ذخیره‌شده</button></div>
+      <pre id="codeOut"></pre></div>
+  </div>
+</div>

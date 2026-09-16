@@ -14,9 +14,18 @@ var TK = (function () {
   function ld(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
   function sv(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   function toast(m) { if (window.IL && IL.toast) IL.toast(m); else { var t = h('div', { class: 'toast', text: m }); var box = document.querySelector('.toasts') || document.body.appendChild(h('div', { class: 'toasts' })); box.appendChild(t); setTimeout(function () { t.remove(); }, 2500); } }
+  function confirmBox(msg) {
+    if (window.IL && IL.ask) return IL.ask(msg, 'بله', 'انصراف');
+    var r = false; try { r = window.confirm(msg); } catch (e) {}
+    return Promise.resolve(r);
+  }
   function copy(t, msg) {
     var ok = function () { toast(msg || '📋 کپی شد! حالا در هوش مصنوعی بچسبانید.'); };
-    var fb = function () { var ta = h('textarea', { style: 'position:fixed;top:0;opacity:0' }); ta.value = t; document.body.appendChild(ta); ta.select(); var d = false; try { d = document.execCommand('copy'); } catch (e) {} ta.remove(); if (d) ok(); else window.prompt('کپی کنید:', t); };
+    var fb = function () {
+      var ta = h('textarea', { style: 'position:fixed;top:0;opacity:0' }); ta.value = t; document.body.appendChild(ta); ta.select();
+      var d = false; try { d = document.execCommand('copy'); } catch (e) {} ta.remove();
+      if (d) ok(); else if (window.IL && IL.showText) IL.showText('📋 متن را کپی کنید', t); else { try { window.prompt('کپی کنید:', t); } catch (e) {} }
+    };
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(ok, fb); else fb();
   }
   var bullets = function (s, pre) { return String(s || '').split(/\n+/).map(function (x) { return x.replace(/^[-•*\d.\s)]+/, '').trim(); }).filter(Boolean).map(function (x) { return (pre || '  - ') + x; }).join('\n'); };
@@ -157,7 +166,7 @@ var TK = (function () {
         h('div', { style: 'margin-top:6px' }, check('present', 'حالت ارائه'), check('report', 'گزارش برای معلم'), check('sound', 'صدا'))));
     function gen() { out.value = v.out === 'content' ? contentPrompt(v) : fullPrompt(v); }
     var copyBtn = h('button', { class: 'btn acc bigb', type: 'button', text: '📋 کپی پرامپت', onclick: function () {
-      if (!v.topic || !v.miscon) { if (!confirm('موضوع یا بدفهمی‌ها خالی است. بدفهمی‌ها قلب این روش‌اند. باز هم کپی شود؟')) return; }
+      if (!v.topic || !v.miscon) { confirmBox('موضوع یا بدفهمی‌ها خالی است. بدفهمی‌ها قلب این روش‌اند. باز هم کپی شود؟').then(function (y) { if (y) copy(out.value); }); return; }
       copy(out.value);
     } });
     var helpers = h('div', { class: 'grid2', style: 'margin-top:8px' });
@@ -169,7 +178,7 @@ var TK = (function () {
     el.appendChild(form);
     el.appendChild(h('h3', { text: 'نوع خروجی' })); el.appendChild(outSel);
     el.appendChild(h('h3', { text: '📜 پرامپت آماده' })); el.appendChild(out);
-    el.appendChild(h('div', { class: 'row' }, copyBtn, h('button', { class: 'btn ghost', type: 'button', text: '🧹 پاک کردن فرم', onclick: function () { if (confirm('فرم پاک شود؟')) { try { localStorage.removeItem(K); } catch (e) {} el.innerHTML = ''; builder(el); } } })));
+    el.appendChild(h('div', { class: 'row' }, copyBtn, h('button', { class: 'btn ghost', type: 'button', text: '🧹 پاک کردن فرم', onclick: function () { confirmBox('فرم پاک شود؟').then(function (y) { if (!y) return; try { localStorage.removeItem(K); } catch (e) {} el.innerHTML = ''; builder(el); }); } })));
     el.appendChild(h('h3', { text: '🧰 پرامپت‌های کمکی (از اطلاعات همین فرم استفاده می‌کنند)' })); el.appendChild(helpers);
     gen();
   }

@@ -37,7 +37,10 @@ const files = {
   '02-lesson-fractions.html': page('قنادی آقای کسری — مقایسهٔ کسرها', [S('lesson-fractions.js'), engine]),
   '03-lesson-density.html': page('راز شناوری — چگالی', [S('lesson-density.js'), engine]),
   '04-prompt-kit.html': page('جعبه‌ابزار کلاس زنده', [toolkit, S('kit-page.js')]),
-  '05-template.html': page('قالب کلاس زنده', [S('template.js'), engine])
+  '05-template.html': page('قالب کلاس زنده', [S('template.js'), engine]),
+  '07-bridge-demo.html': page('میزبان نمونهٔ کلاس زنده — پل و پنل یادگیری', [S('bridge-demo.js')], S('bridge-demo-body.html')),
+  '06-proposal.html': page('فلسفه، تعاملی می‌شود — طرح پیشنهادی', [S('proposal.js'), engine]),
+  'falsafe12/01-hast-va-chist.html': page('هست و چیست — فلسفهٔ دوازدهم، درس ۱', [S('falsafe12/lesson01.js'), engine])
 };
 for (const [name, html] of Object.entries(files)) {
   fs.writeFileSync(path.join(OUT, name), html, 'utf8');

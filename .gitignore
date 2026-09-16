@@ -1,3 +1,10 @@
 .claude/
 node_modules/
 *.log
+_material/
+06-proposal.html
+_src/proposal.js
+falsafe12/
+_src/falsafe12/
+HANDOFF.md
+_tools/
