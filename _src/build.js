@@ -43,6 +43,7 @@ const files = {
 };
 // فایل‌های خصوصی (در مخزن عمومی نیستند): فقط اگر منبعشان موجود باشد ساخته می‌شوند
 if (has('proposal.js')) files['06-proposal.html'] = page('فلسفه، تعاملی می‌شود — طرح پیشنهادی', [S('proposal.js'), engine]);
+if (has('planning/insights.js', 'planning/insights-body.html')) files['_planning/01-learning-insights.html'] = page('از داده به تصمیم — بارش فکری پنل یادگیری', [S('planning/insights.js')], S('planning/insights-body.html'));
 if (has('falsafe12/lesson01.js')) files['falsafe12/01-hast-va-chist.html'] = page('هست و چیست — فلسفهٔ دوازدهم، درس ۱', [S('falsafe12/lesson01.js'), engine]);
 for (const [name, html] of Object.entries(files)) {
   fs.mkdirSync(path.dirname(path.join(OUT, name)), { recursive: true });
