@@ -45,6 +45,7 @@ const files = {
 if (has('proposal.js')) files['06-proposal.html'] = page('فلسفه، تعاملی می‌شود — طرح پیشنهادی', [S('proposal.js'), engine]);
 if (has('planning/insights.js', 'planning/insights-body.html')) files['_planning/01-learning-insights.html'] = page('از داده به تصمیم — بارش فکری پنل یادگیری', [S('planning/insights.js')], S('planning/insights-body.html'));
 if (has('planning/plan.js', 'planning/plan-body.html')) files['_planning/02-execution-plan.html'] = page('برنامهٔ اجرایی — پنل بینش یادگیری', [S('planning/plan.js')], S('planning/plan-body.html'));
+if (has('planning/catalog.js', 'planning/catalog-body.html')) files['_planning/03-catalog-dashboard.html'] = page('ویترین و داشبورد — برنامهٔ نسخهٔ ۲', [S('planning/catalog.js')], S('planning/catalog-body.html'));
 if (has('planning/wave1-issues.md')) { fs.mkdirSync(path.join(OUT, '_planning'), { recursive: true }); fs.copyFileSync(path.join(__dirname, 'planning/wave1-issues.md'), path.join(OUT, '_planning/wave1-issues.md')); }
 if (has('falsafe12/lesson01.js')) files['falsafe12/01-hast-va-chist.html'] = page('هست و چیست — فلسفهٔ دوازدهم، درس ۱', [S('falsafe12/lesson01.js'), engine]);
 for (const [name, html] of Object.entries(files)) {
