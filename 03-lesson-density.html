@@ -1037,7 +1037,7 @@ function hintsUI(ctx) {
     btn.disabled = r.hints >= s.hints.length;
   }
   function draw(k) {
-    var e = h('div', { class: 'hint' }, h('span', { class: 'hl', text: 'پلهٔ ' + fa(k + 1) + ' · ' + (s.hintLabels ? s.hintLabels[k] : HINT_LBL[k] || 'راهنما') }), h('span', { html: s.hints[k] }));
+    var e = h('div', { class: 'hint' }, h('span', { class: 'hl', text: 'پلهٔ ' + fa(k + 1) + ': ' + (s.hintLabels ? s.hintLabels[k] : HINT_LBL[k] || 'راهنما') }), h('span', { html: s.hints[k] }));
     faNodes(e); list.appendChild(e);
   }
   ctx.hintAdd = function (auto) { if (r.hints >= s.hints.length) return; draw(r.hints); r.hints++; store(); lbl(); sound('hint'); emit('hint.open', { item: sid(s), level: r.hints, auto: auto === true, attempts: r.tries }); };
@@ -1645,7 +1645,7 @@ function startScreen() {
     if (mode === 'present') toast('🧑‍🏫 حالت ارائه · کلیدها: ← بعدی، → قبلی، T تایمر فکر، N یادداشت، F تمام‌صفحه');
   }
   var modes = h('div', { class: 'modes' },
-    resume ? h('button', { class: 'modebtn primary', type: 'button', onclick: function () { begin(S.mode || 'student'); } }, h('span', { class: 'e', text: '▶️' }), h('b', { text: 'ادامه از جایی که بودی' }), h('small', { text: 'اسلاید ' + fa(S.idx + 1) + ' از ' + fa(SL.length) + ' · ' + fa(S.stars) + ' ستاره' })) : null,
+    resume ? h('button', { class: 'modebtn primary', type: 'button', onclick: function () { begin(S.mode || 'student'); } }, h('span', { class: 'e', text: '▶️' }), h('b', { text: 'ادامه از جایی که بودی' }), h('small', { text: 'اسلاید ' + fa(S.idx + 1) + ' از ' + fa(SL.length) + '، ' + fa(S.stars) + ' ستاره' })) : null,
     h('button', { class: 'modebtn' + (resume ? '' : ' primary'), type: 'button', onclick: function () { begin('student', resume); } }, h('span', { class: 'e', text: '🎒' }), h('b', { text: resume ? 'شروع دوباره' : (L.startStudent || 'شروع یادگیری') }), h('small', { text: L.startStudentNote || 'با سرعت خودت؛ مرحله‌ها یکی‌یکی باز می‌شوند' })),
     h('button', { class: 'modebtn', type: 'button', onclick: function () { begin('present', resume); } }, h('span', { class: 'e', text: '🧑‍🏫' }), h('b', { text: L.startPresent || 'حالت ارائه (معلم)' }), h('small', { text: L.startPresentNote || 'برای ویدئوپروژکتور؛ همهٔ مراحل باز' })));
   var meta = h('div', { class: 'meta' }, [L.grade, L.subject, L.duration].filter(Boolean).map(function (m) { return h('span', { class: 'tag', text: m }); }));

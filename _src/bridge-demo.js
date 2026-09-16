@@ -102,7 +102,7 @@
       var extra = d.correct === true ? '✅' : d.correct === false ? '🤔' : '';
       return '<div class="ev"><code>' + esc(ev.type) + '</code> ' + extra + ' <span class="muted">' + esc(d.item || '') + (d.tags && d.tags.length ? ' · ' + esc(d.tags.join('، ')) : '') + (d.level ? ' · پلهٔ ' + fa(d.level) : '') + '</span></div>';
     }).join('');
-    $('#count').textContent = fa(events.length) + ' رویداد · ' + fa(Object.keys(sessions).length) + ' نشست';
+    $('#count').textContent = fa(events.length) + ' رویداد، ' + fa(Object.keys(sessions).length) + ' نشست';
   }
 
   $('#decodeBtn').onclick = function () {
