@@ -1,8 +1,9 @@
 /* ============ موتور طرح درس تعاملی — ظاهر ============ */
 :root{
-  --p:#3b4bb8; --p-soft:#e9ecfb; --p-ink:#26307a;
+  /* رنگ‌های برند پای‌آموز (۱٫۲): آبی عمل و سرمه‌ای؛ هر درس می‌تواند با theme رنگ خودش را بگذارد */
+  --p:#1f5fd6; --p-soft:#eaf0fc; --p-ink:#0e2c52;
   --a:#f2a31b; --a-soft:#fff4da;
-  --bg:#f6f4ef; --card:#ffffff; --ink:#1e2240; --muted:#666a82; --line:#e5e1d8;
+  --bg:#f4f3ef; --card:#ffffff; --ink:#101c30; --muted:#5d6678; --line:#e3e1da;
   --ok:#128a5c; --ok-soft:#e2f5ec; --no:#c2590f; --no-soft:#fff0e0; --info:#2a64ad; --info-soft:#e7f0fb;
   --r:18px; --fs:17px; --maxw:880px;
   --font: Vazirmatn, Vazir, Shabnam, Sahel, "Segoe UI", Tahoma, sans-serif;
@@ -297,3 +298,7 @@ textarea.refl{width:100%;min-height:80px;border:2px solid var(--line);border-rad
   .present .opts{grid-template-columns:1fr}
 }
 @media print{.topbar,.navbar,.notes,.toasts{display:none}.stage{padding:0}.slide{box-shadow:none}}
+
+/* ---------- امضای برند (۱٫۲) ---------- */
+.kz-sig{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
+.kz-mark{flex:0 0 auto;border-radius:6px}

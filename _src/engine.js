@@ -1,5 +1,7 @@
 /* ============================================================
-   موتور طرح درس تعاملی تک‌فایلی — نسخه ۱
+   موتور طرح درس تعاملی تک‌فایلی — نسخه ۱٫۲
+   ۱٫۲: contentMode، شناسهٔ پایدار اسلایدها، رویداد خلاصهٔ نهایی (lesson.summary) و امضای پای‌آموز.
+   درس‌های ساخته‌شده با نسخهٔ ۱٫۱ بدون تغییر اجرا می‌شوند.
    این بخش را لازم نیست تغییر دهید. محتوای درس در شیء LESSON (بالای فایل) است.
    ============================================================ */
 (function () {
@@ -68,7 +70,9 @@ function fresh() {
     tags: {}, self: {}, reflect: '', stDone: {}, started: false, best: 0, mute: false, time: 0, dwell: {} };
 }
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
-var ENGINE_VERSION = '1.1.0';
+var ENGINE_VERSION = '1.2.0';
+/* سیاست حق نشر: syllabus (سرفصل‌محور، پیش‌فرض) یا textbook-licensed (مطابق کتاب، فقط با شمارهٔ مجوز) */
+var CONTENT_MODE = L.contentMode === 'textbook-licensed' ? 'textbook-licensed' : 'syllabus';
 var syncTimer = 0;
 function store() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
@@ -89,6 +93,14 @@ var SCORED = { mcq: 1, input: 1, sort: 1, order: 1, custom: 1 };
 function gated(s) { return !!GATED[s.type] && s.gate !== false; }
 function res(i) { return S.res[i] || (S.res[i] = { tries: 0, hints: 0, done: false, stars: 0 }); }
 function isDone(i) { var s = SL[i]; return !gated(s) || !!(S.res[i] && S.res[i].done); }
+(function () {
+  var seen = {};
+  SL.forEach(function (s) {
+    if (!s.id) { if (SCORED[s.type] && s.gate !== false && typeof console !== 'undefined') console.warn('[kelas] slide ' + s._i + ' (' + s.type + ') has no stable id'); return; }
+    if (seen[s.id] && typeof console !== 'undefined') console.warn('[kelas] duplicate slide id: ' + s.id);
+    seen[s.id] = true;
+  });
+})();
 var MAXSTARS = SL.reduce(function (t, s) { return t + (SCORED[s.type] && s.stars !== false && s.gate !== false ? 3 : 0); }, 0);
 var CLASSGOAL = L.classGoal || Math.max(3, Math.round(MAXSTARS * 0.7));
 if (S.idx >= SL.length) S.idx = 0;
@@ -102,7 +114,7 @@ function rid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function qhash(str) { var x = 5381; str = String(str || ''); for (var i = 0; i < str.length; i++) x = ((x << 5) + x + str.charCodeAt(i)) >>> 0; return x.toString(36); }
 function plain(html) { var d = document.createElement('div'); d.innerHTML = String(html || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); }
 function sid(s) { return s.id || ('s' + s._i); }
-function lessonRef() { return { id: L.id || L.title, version: L.version || 1 }; }
+function lessonRef() { return { id: L.id || L.title, version: L.version || 1, engine: ENGINE_VERSION }; }
 var SESSION = rid(), SEQ = 0, LOG = [], SLIDE_T0 = Date.now(), LAST_SLIDE = null;
 if (!S.time) S.time = 0;
 if (!S.dwell) S.dwell = {};
@@ -135,7 +147,7 @@ function catalog() {
 function hello() {
   post({ ns: 'kelas', v: 1, kind: 'hello', engine: ENGINE_VERSION, session: SESSION, storage: STORE_OK, caps: ['events', 'state', 'resume', 'commands'],
     lesson: { id: L.id || L.title, version: L.version || 1, title: L.title, subtitle: L.subtitle || '', grade: L.grade || '', subject: L.subject || '',
-      maxStars: MAXSTARS, objectives: (L.objectives || []).map(plain), stages: STG, tags: L.tags || {}, items: catalog() } });
+      contentMode: CONTENT_MODE, maxStars: MAXSTARS, objectives: (L.objectives || []).map(plain), stages: STG, tags: L.tags || {}, items: catalog() } });
 }
 function dwellClose() {
   if (!LAST_SLIDE) return 0;
@@ -148,8 +160,29 @@ function dwellClose() {
 function summary() {
   var items = {};
   SL.forEach(function (s) { var r = S.res[s._i]; if (r && gated(s)) items[sid(s)] = { done: !!r.done, tries: r.tries || 0, hints: r.hints || 0, stars: r.stars || 0 }; });
+  var objs = (L.objectives || []).length;
   return { stars: S.stars, maxStars: MAXSTARS, pct: MAXSTARS ? Math.round(100 * S.stars / MAXSTARS) : 0, badges: S.badges.slice(), tags: S.tags, self: S.self,
-    reflectLength: (S.reflect || '').length, timeMs: S.time || 0, items: items };
+    selfComplete: objs > 0 && Object.keys(S.self || {}).filter(function (k) { return S.self[k] != null; }).length >= objs,
+    reflectLength: (S.reflect || '').length, timeMs: S.time || 0, completed: !!S.completed, contentMode: CONTENT_MODE, items: items };
+}
+/*
+ * Final summary (1.2). lesson.complete goes out when the end slide opens, before the learner has
+ * assessed themselves; lesson.summary follows once the self-assessment is complete, after the
+ * reflection is written, and when the page is left, so the host always ends with the full picture.
+ * Each one replaces the last (the host keeps the latest, the "final" flag marks the full one).
+ */
+var summaryTimer = 0;
+function finalSummary(reason) {
+  if (!S.completed) return;
+  clearTimeout(summaryTimer);
+  summaryTimer = setTimeout(function () {
+    var sm = summary();
+    sm.final = sm.selfComplete || !(L.objectives || []).length;
+    sm.reason = reason;
+    sm.reflect = String(S.reflect || '').slice(0, 2000);
+    emit('lesson.summary', sm);
+    post({ ns: 'kelas', v: 1, kind: 'summary', session: SESSION, lesson: lessonRef(), summary: sm });
+  }, reason === 'leave' ? 0 : 400);
 }
 function reportCode() {
   var items = {};
@@ -181,7 +214,7 @@ window.addEventListener('message', function (e) {
 });
 document.addEventListener('visibilitychange', function () {
   if (!S.started) return;
-  if (document.hidden) { dwellClose(); emit('session.pause', {}); store(); }
+  if (document.hidden) { dwellClose(); emit('session.pause', {}); store(); if (S.completed) finalSummary('leave'); }
   else { SLIDE_T0 = Date.now(); emit('session.resume', {}); }
 });
 
@@ -803,7 +836,7 @@ R.end = function (ctx) {
       EMO.forEach(function (e, j) {
         var b = h('button', { class: 'emo' + (S.self[k] === j ? ' on' : ''), type: 'button', title: e[1], text: e[0] + ' ' + e[1] });
         b.onclick = function () { S.self[k] = j; emit('self.assess', { objective: k, level: j, of: EMO.length }); store(); Array.prototype.forEach.call(row.querySelectorAll('.emo'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); sound('click');
-          if (objs.every(function (_, q) { return S.self[q] != null; })) award('reflector'); };
+          if (objs.every(function (_, q) { return S.self[q] != null; })) { award('reflector'); finalSummary('self'); } };
         row.appendChild(b);
       });
       ctx.card.appendChild(row);
@@ -812,7 +845,7 @@ R.end = function (ctx) {
   ctx.card.appendChild(h('h3', { text: '✍️ ' + (s.prompt || 'امروز یاد گرفتم که…') }));
   var ta = h('textarea', { class: 'refl', placeholder: 'یک یا دو جمله بنویس…' }); ta.value = S.reflect || '';
   ta.oninput = function () { S.reflect = ta.value; store(); };
-  ta.onchange = function () { emit('reflect.submit', { text: String(ta.value || '').slice(0, 2000), length: (ta.value || '').length }); };
+  ta.onchange = function () { emit('reflect.submit', { text: String(ta.value || '').slice(0, 2000), length: (ta.value || '').length }); finalSummary('reflect'); };
   ctx.card.appendChild(ta);
   if (s.html) ctx.card.appendChild(h('div', { html: s.html, style: 'margin-top:12px' }));
 
@@ -1004,6 +1037,8 @@ document.addEventListener('keydown', function (e) {
 });
 
 /* ---------- صفحهٔ شروع ---------- */
+/* امضای برند: نشان «پ هوشمند» پای‌آموز (سرمه‌ای و آبی، نقطهٔ کهربایی) */
+var MARK = '<svg class="kz-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true" focusable="false"><rect width="512" height="512" rx="116" fill="#0E2C52"/><g transform="translate(0 -32)"><path d="M352 150Q372 150 372 170V244Q372 300 316 300H196Q140 300 140 244V216Q140 196 159 196Q178 196 178 216V238Q178 260 200 260H312Q332 260 332 238V170Q332 150 352 150Z" fill="#DDE7FF"/><g stroke="#BFD2FF" stroke-width="10" stroke-linecap="round" opacity=".8"><line x1="220" y1="350" x2="292" y2="350"/><line x1="220" y1="350" x2="256" y2="406"/><line x1="292" y1="350" x2="256" y2="406"/></g><circle cx="220" cy="350" r="22" fill="#BFD2FF"/><circle cx="292" cy="350" r="22" fill="#BFD2FF"/><circle cx="256" cy="406" r="26" fill="#F1CC59"/></g></svg>';
 function startScreen() {
   var nameIn = h('input', { class: 'tin wide', placeholder: 'اسمت چیست؟ (اختیاری)', style: 'width:100%;text-align:center', autocomplete: 'off' });
   nameIn.value = S.name || '';
@@ -1028,7 +1063,7 @@ function startScreen() {
     (!STORE_OK && !HOST.persist) ? h('div', { class: 'callout warn small', text: '⚠️ در این صفحه پیشرفتت ذخیره نمی‌شود؛ اگر صفحه را ببندی، درس از اول شروع می‌شود. بهتر است درس را در یک نشست تمام کنی.' }) : null,
     HOST.persist ? h('div', { class: 'callout ok small', text: '☁️ پیشرفتت در حساب کاربری‌ات ذخیره می‌شود.' }) : null,
     nameIn, modes,
-    h('p', { class: 'center muted small', style: 'margin-top:14px', html: L.credit || 'ساخته‌شده با موتور «کلاس زنده» · بدون نیاز به اینترنت' }));
+    h('p', { class: 'center muted small kz-sig', style: 'margin-top:14px', html: L.credit || (MARK + '<span>ساخته‌شده با موتور «کلاس زنده» · <b>پای‌آموز</b> · بدون نیاز به اینترنت</span>') }));
   var ov = h('div', { class: 'startov' }, card);
   faNodes(card);
   document.body.appendChild(ov);
@@ -1041,5 +1076,5 @@ else if (L.noStart) { S.started = true; render(); }
 else { render(); startScreen(); }
 hello();
 window.IL = { go: go, state: function () { return S; }, fa: fa, en: en, h: h, toast: toast, confetti: confetti, sound: sound, copy: copyText,
-  ask: ask, showText: showText, emit: emit, events: function () { return LOG.slice(); }, summary: summary, reportCode: reportCode, catalog: catalog, version: ENGINE_VERSION };
+  ask: ask, showText: showText, emit: emit, events: function () { return LOG.slice(); }, summary: summary, reportCode: reportCode, catalog: catalog, version: ENGINE_VERSION, contentMode: CONTENT_MODE };
 })();

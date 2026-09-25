@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build, kz-meta and browser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build
+        run: node _src/build.js
+
+      - name: Built files are up to date
+        run: |
+          if ! git diff --quiet -- '*.html'; then
+            echo "The built HTML differs from _src. Run: node _src/build.js"
+            git diff --stat -- '*.html'
+            exit 1
+          fi
+
+      - name: kz-meta and build rules
+        run: node _src/test.js
+
+      - name: Browser tests (sandboxed iframe)
+        run: |
+          npm install --no-save --no-package-lock playwright@1
+          npx playwright install --with-deps chromium
+          node _src/e2e.mjs
