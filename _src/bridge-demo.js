@@ -38,7 +38,7 @@
     if (!m || m.ns !== 'kelas' || m.v !== 1) return;       // فقط قالب پل
     if (m.kind === 'hello') {
       meta = m.lesson;
-      $('#conn').innerHTML = '🟢 متصل · موتور <b>' + esc(m.engine) + '</b> · ' + fa(meta.items.length) + ' اسلاید · ذخیرهٔ مرورگر در قاب: ' + (m.storage ? 'دارد' : '<b>ندارد</b>');
+      $('#conn').innerHTML = '🟢 متصل · موتور <b>' + esc(m.engine) + '</b> · ' + (meta.contentMode === 'textbook-licensed' ? 'مطابق کتاب' : 'سرفصل‌محور') + ' · ' + fa(meta.items.length) + ' اسلاید · ذخیرهٔ مرورگر در قاب: ' + (m.storage ? 'دارد' : '<b>ندارد</b>');
       meta.items.forEach(function (it) { itemRow(it.id); });
       var saved = null;
       if (persist) { try { saved = JSON.parse(localStorage.getItem(STATE_KEY)); } catch (x) {} }
