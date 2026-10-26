@@ -1,13 +1,18 @@
 /* ============================================================
    موتور طرح درس تعاملی تک‌فایلی — نسخه ۱٫۲
-   ۱٫۲: contentMode، شناسهٔ پایدار اسلایدها، رویداد خلاصهٔ نهایی (lesson.summary) و امضای پای‌آموز.
-   درس‌های ساخته‌شده با نسخهٔ ۱٫۱ بدون تغییر اجرا می‌شوند.
+   ۱٫۲: contentMode، شناسهٔ پایدار اسلایدها، خلاصهٔ نهایی (lesson.summary و پیام summary)؛
+   شناسنامهٔ ایستای kz-meta را build از _src/kz-meta.js می‌سازد. درس‌های ۱٫۱ بدون تغییر اجرا می‌شوند.
    این بخش را لازم نیست تغییر دهید. محتوای درس در شیء LESSON (بالای فایل) است.
    ============================================================ */
 (function () {
 'use strict';
 var L = window.LESSON;
 if (!L) { document.body.innerHTML = '<p style="padding:2em">محتوای درس (LESSON) پیدا نشد.</p>'; return; }
+// Opt-in academic presentation; existing lessons keep their original behavior.
+var ACADEMIC = L.profile === 'academic';
+var WORKSHEET = L.layout === 'worksheet';
+if (WORKSHEET) document.body.classList.add('worksheet');
+if (ACADEMIC) document.body.classList.add('academic');
 
 /* ---------- ابزارهای کوچک ---------- */
 var FA = '۰۱۲۳۴۵۶۷۸۹';
@@ -64,13 +69,13 @@ for (var tk in MAP) if (TH[tk]) document.documentElement.style.setProperty(MAP[t
 document.title = L.title + (L.subtitle ? ' — ' + L.subtitle : '');
 
 /* ---------- وضعیت و ذخیره ---------- */
-var KEY = 'ilesson:' + (L.id || L.title);
+var KEY = 'ilesson:' + (L.id || L.title) + ':v' + (L.version || 1) + ':' + qhash(L.slides.map(function (s) { return (s.id || '') + ':' + s.type; }).join('|')); // Older keys are preserved.
 function fresh() {
   return { name: '', mode: 'student', idx: 0, max: 0, res: {}, badges: [], stars: 0, classStars: 0, streak: 0,
     tags: {}, self: {}, reflect: '', stDone: {}, started: false, best: 0, mute: false, time: 0, dwell: {} };
 }
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
-var ENGINE_VERSION = '1.2.0';
+var ENGINE_VERSION = '1.2.2';
 /* سیاست حق نشر: syllabus (سرفصل‌محور، پیش‌فرض) یا textbook-licensed (مطابق کتاب، فقط با شمارهٔ مجوز) */
 var CONTENT_MODE = L.contentMode === 'textbook-licensed' ? 'textbook-licensed' : 'syllabus';
 var syncTimer = 0;
@@ -81,7 +86,27 @@ function store() {
     syncTimer = setTimeout(function () { post({ ns: 'kelas', v: 1, kind: 'state', session: SESSION, lesson: lessonRef(), state: S }); }, 800);
   }
 }
-var S = Object.assign(fresh(), load() || {});
+function restoreState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fresh();
+  var result = Object.assign(fresh(), value);
+  // PHP may encode contiguous numeric-key maps as lists; retain their activity indexes.
+  ['res', 'tags', 'self', 'stDone', 'dwell'].forEach(function (key) { if (Array.isArray(result[key])) result[key] = Object.assign({}, result[key]); });
+  ['res', 'tags', 'self', 'stDone', 'dwell'].forEach(function (key) { if (!result[key] || typeof result[key] !== 'object' || Array.isArray(result[key])) result[key] = {}; });
+  if (!Array.isArray(result.badges)) result.badges = [];
+  ['idx', 'max', 'stars', 'classStars', 'streak', 'best', 'time'].forEach(function (key) { if (!Number.isFinite(result[key]) || result[key] < 0) result[key] = 0; });
+  result.idx = Math.min(L.slides.length - 1, Math.floor(result.idx));
+  Object.keys(result.res).forEach(function (key) {
+    var r = result.res[key];
+    if (!r || typeof r !== 'object' || Array.isArray(r)) { delete result.res[key]; return; }
+    ['tries', 'hints', 'stars'].forEach(function (field) { if (!Number.isFinite(r[field]) || r[field] < 0) r[field] = 0; });
+    if (r.last && !Array.isArray(r.last)) delete r.last;
+  });
+  result.name = typeof result.name === 'string' ? result.name.slice(0, 60) : '';
+  result.reflect = typeof result.reflect === 'string' ? result.reflect.slice(0, 2000) : '';
+  result.mode = result.mode === 'present' ? 'present' : 'student';
+  return result;
+}
+var S = restoreState(load());
 
 var SL = L.slides;
 var STG = L.stages || [];
@@ -101,7 +126,7 @@ function isDone(i) { var s = SL[i]; return !gated(s) || !!(S.res[i] && S.res[i].
     seen[s.id] = true;
   });
 })();
-var MAXSTARS = SL.reduce(function (t, s) { return t + (SCORED[s.type] && s.stars !== false && s.gate !== false ? 3 : 0); }, 0);
+var MAXSTARS = ACADEMIC ? 0 : SL.reduce(function (t, s) { return t + (SCORED[s.type] && s.stars !== false && s.gate !== false ? 3 : 0); }, 0);
 var CLASSGOAL = L.classGoal || Math.max(3, Math.round(MAXSTARS * 0.7));
 if (S.idx >= SL.length) S.idx = 0;
 
@@ -112,7 +137,7 @@ var PARENT_ORIGIN = (function () { try { var a = location.ancestorOrigins; if (a
 var HOST = { connected: false, persist: false, learner: null };
 function rid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function qhash(str) { var x = 5381; str = String(str || ''); for (var i = 0; i < str.length; i++) x = ((x << 5) + x + str.charCodeAt(i)) >>> 0; return x.toString(36); }
-function plain(html) { var d = document.createElement('div'); d.innerHTML = String(html || ''); return (d.textContent || '').replace(/\s+/g, ' ').trim(); }
+function plain(html) { var d = document.createElement('div'); d.innerHTML = String(html || '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' '); return (d.textContent || '').replace(/\s+/g, ' ').trim(); }
 function sid(s) { return s.id || ('s' + s._i); }
 function lessonRef() { return { id: L.id || L.title, version: L.version || 1, engine: ENGINE_VERSION }; }
 var SESSION = rid(), SEQ = 0, LOG = [], SLIDE_T0 = Date.now(), LAST_SLIDE = null;
@@ -139,7 +164,7 @@ function catalog() {
   return SL.map(function (s) {
     var q = plain(s.q || s.title || '');
     return { id: sid(s), idx: s._i, type: s.type, stage: s.stage, gated: gated(s),
-      scored: !!SCORED[s.type] && s.stars !== false && s.gate !== false,
+      scored: !ACADEMIC && !!SCORED[s.type] && s.stars !== false && s.gate !== false,
       q: q.slice(0, 160), qhash: qhash(q + '|' + (s.options || []).map(function (o) { return plain(o.t); }).join('|')), tags: itemTags(s),
       options: (s.type === 'mcq' || s.type === 'poll') ? s.options.map(function (o) { return { t: plain(o.t).slice(0, 80), ok: !!o.ok, tag: o.tag || null }; }) : undefined };
   });
@@ -161,8 +186,9 @@ function summary() {
   var items = {};
   SL.forEach(function (s) { var r = S.res[s._i]; if (r && gated(s)) items[sid(s)] = { done: !!r.done, tries: r.tries || 0, hints: r.hints || 0, stars: r.stars || 0 }; });
   var objs = (L.objectives || []).length;
+  var assessed = objs > 0 && (L.objectives || []).every(function (_, index) { return Number.isInteger(S.self[index]) && S.self[index] >= 0 && S.self[index] <= 3; });
   return { stars: S.stars, maxStars: MAXSTARS, pct: MAXSTARS ? Math.round(100 * S.stars / MAXSTARS) : 0, badges: S.badges.slice(), tags: S.tags, self: S.self,
-    selfComplete: objs > 0 && Object.keys(S.self || {}).filter(function (k) { return S.self[k] != null; }).length >= objs,
+    selfComplete: assessed, final: !!S.completed && (assessed || objs === 0), reflect: String(S.reflect || '').slice(0, 2000),
     reflectLength: (S.reflect || '').length, timeMs: S.time || 0, completed: !!S.completed, contentMode: CONTENT_MODE, items: items };
 }
 /*
@@ -176,6 +202,7 @@ function finalSummary(reason) {
   if (!S.completed) return;
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(function () {
+    if (!S.completed) return; // the lesson was restarted meanwhile; an old summary must not reach the new run
     var sm = summary();
     sm.final = sm.selfComplete || !(L.objectives || []).length;
     sm.reason = reason;
@@ -197,8 +224,9 @@ window.addEventListener('message', function (e) {
   if (PARENT_ORIGIN !== '*' && e.origin !== PARENT_ORIGIN) return;
   if (m.kind === 'ping') { hello(); return; }
   if (m.kind === 'init') {
+    if (HOST.connected) return; // Duplicate init must not discard partial input or rerun activities.
     HOST.connected = true; HOST.persist = !!m.persist; HOST.learner = m.learner && typeof m.learner === 'object' ? m.learner : null;
-    if (m.state && typeof m.state === 'object' && !S.started) { S = Object.assign(fresh(), m.state); if (S.idx >= SL.length) S.idx = 0; if (!S.dwell) S.dwell = {}; if (!S.time) S.time = 0; }
+    if (m.state && typeof m.state === 'object' && !S.started) { S = restoreState(m.state); if (S.idx >= SL.length) S.idx = 0; if (!S.dwell) S.dwell = {}; if (!S.time) S.time = 0; }
     if (HOST.learner && HOST.learner.name && !S.name) S.name = String(HOST.learner.name).slice(0, 60);
     if (!S.started && (m.mode === 'present' || m.mode === 'student')) S.mode = m.mode;
     var ov = document.querySelector('.startov'); if (ov) { ov.remove(); startScreen(); }
@@ -234,6 +262,71 @@ var BADGES = Object.assign({
   finisher: { i: '🏁', t: 'به مقصد رسیدی', d: 'درس را تا آخر پیش رفتی.' }
 }, L.badges || {});
 
+/* ---------- امضای برند (از brand.js؛ محتوای درس نمی‌تواند آن را خاموش کند) ---------- */
+var BRAND = (typeof KZ_BRAND !== 'undefined' && KZ_BRAND && KZ_BRAND.site) ? KZ_BRAND : {
+  name: 'پای‌آموز', person: 'حجت بابایی', tagline: 'آکادمی آموزش پروژه‌محور برنامه‌نویسی و هوش مصنوعی',
+  site: { label: 'pyamooz.com', url: 'https://pyamooz.com' },
+  channel: { label: 'eitaa.com/pyamooz', app: 'کانال ایتا', url: 'https://eitaa.com/pyamooz' }, phone: '09154865663',
+  cta: { kicker: 'این درس را پای‌آموز ساخته است', title: 'تو هم می‌توانی درس‌هایی مثل همین بسازی!',
+    text: 'آموزش ساخت طرح درس تعاملی با هوش مصنوعی، و درس‌های رایگان بیشتر؛ در سایت و کانال پای‌آموز.',
+    perks: ['🎁 درس‌های تعاملی رایگان', '🛠️ آموزش ساخت همین درس‌ها', '🤖 هوش مصنوعی برای معلم‌ها'], button: 'درس‌های رایگان بیشتر' }
+};
+var BQR = (typeof KZ_BRAND_QR !== 'undefined' && KZ_BRAND_QR.url === (BRAND.channel && BRAND.channel.url)) ? KZ_BRAND_QR : null;
+var BICON = {
+  site: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg>',
+  channel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l6 4V5L7 9H5a1 1 0 0 0-1 1z"/><path d="M17 9a4 4 0 0 1 0 6M19.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>'
+};
+function brandLines() {
+  var o = [];
+  if (BRAND.site && BRAND.site.label) o.push({ k: 'site', ic: '🌐', t: 'سایت', v: BRAND.site.label, u: BRAND.site.url });
+  if (BRAND.channel && BRAND.channel.label) o.push({ k: 'channel', ic: '📣', t: BRAND.channel.app || 'کانال', v: BRAND.channel.label, u: BRAND.channel.url });
+  if (BRAND.phone) o.push({ k: 'phone', ic: '📞', t: 'تماس و مشاوره', v: BRAND.phone, u: 'tel:' + en(BRAND.phone).replace(/[^\d+]/g, '') });
+  return o;
+}
+function brandText() {
+  return ['🎓 ' + BRAND.cta.title, BRAND.cta.text].concat(brandLines().map(function (l) { return l.ic + ' ' + l.t + ': ' + l.v; }))
+    .concat(['✍️ ' + BRAND.name + (BRAND.person ? '، ' + BRAND.person : '')]).join('\n');
+}
+var QRN = 0;
+function brandQR() {
+  if (!BQR) return null;
+  var n = BQR.n, id = 'kzq' + (++QRN), q = 2, W = n + q * 2;
+  var fnd = function (x, y) {
+    return '<rect x="' + (x + 0.5) + '" y="' + (y + 0.5) + '" width="6" height="6" rx="1.9" fill="none" stroke="url(#' + id + ')" stroke-width="1"/>' +
+      '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="3" height="3" rx="0.9" fill="url(#' + id + ')"/>';
+  };
+  var svg = '<svg viewBox="' + (-q) + ' ' + (-q) + ' ' + W + ' ' + W + '" width="100%" height="100%" role="img" aria-label="کد QR ' + (BRAND.channel.app || 'کانال') + '">' +
+    '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f9dff"/><stop offset=".55" stop-color="#9b6cf0"/><stop offset="1" stop-color="#d95fae"/></linearGradient></defs>' +
+    '<path d="' + BQR.d + '" fill="url(#' + id + ')" stroke="url(#' + id + ')" stroke-width=".32" stroke-linejoin="round"/>' +
+    fnd(0, 0) + fnd(n - 7, 0) + fnd(0, n - 7) + '</svg>';
+  return h('a', { class: 'bqr', href: BRAND.channel.url, target: '_blank', rel: 'noopener', title: 'اسکن کن یا بزن: ' + BRAND.channel.label, onclick: function () { emit('brand.click', { target: 'qr' }); } },
+    h('span', { class: 'bqrbox', html: svg }, h('i', { class: 'scan' })), h('small', { text: '📱 با دوربین گوشی اسکن کن' }));
+}
+function brandCard(where) {
+  var links = h('div', { class: 'bclinks' });
+  brandLines().forEach(function (l, k) {
+    links.appendChild(h('a', { class: 'bcl bcl-' + l.k, href: l.u, target: '_blank', rel: 'noopener', style: '--d:' + (0.55 + k * 0.12) + 's', onclick: function () { emit('brand.click', { target: l.k, where: where }); } },
+      h('span', { class: 'bi', html: BICON[l.k] }), h('span', { class: 'bt' }, h('small', { text: l.t }), h('b', { class: 'bv', text: l.v })), h('span', { class: 'ba', text: '←' })));
+  });
+  var cp = h('button', { class: 'bcopy', type: 'button', text: '📋 کپی نشانی‌ها', onclick: function () { emit('brand.copy', { where: where }); copyText(brandText()); } });
+  var perks = h('div', { class: 'bperks' }, (BRAND.cta.perks || []).map(function (t, k) { return h('span', { style: '--d:' + (0.35 + k * 0.08) + 's', text: t }); }));
+  var sp = h('div', { class: 'bspark', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5, 6].map(function () { return h('i'); }));
+  return h('section', { class: 'brandcard', 'aria-label': 'دوره‌های بیشتر و تماس با ' + BRAND.name },
+    h('span', { class: 'borb o1' }), h('span', { class: 'borb o2' }), h('span', { class: 'bshine' }), sp,
+    h('div', { class: 'bcin' },
+      h('div', { class: 'bmain' },
+        h('span', { class: 'bkick' }, h('i', { class: 'dot' }), BRAND.cta.kicker || BRAND.name),
+        h('h3', { class: 'bct', text: BRAND.cta.title }),
+        h('p', { class: 'bcp', text: BRAND.cta.text }), perks, links),
+      brandQR()),
+    h('div', { class: 'bcf' }, h('span', { class: 'bsig' }, h('b', { class: 'mono', text: 'H.B' }), h('span', { text: BRAND.name + (BRAND.person ? '، ' + BRAND.person : '') + (BRAND.tagline ? ': ' + BRAND.tagline : '') })), cp));
+}
+function showBrand() {
+  emit('brand.open', {});
+  var close = modal([brandCard('menu'), h('div', { class: 'row', style: 'justify-content:center' }, h('button', { class: 'btn ghost', type: 'button', text: 'بستن', onclick: function () { close(false); } }))]);
+}
+
 /* ---------- صدا ---------- */
 var AC = null;
 function actx() {
@@ -259,7 +352,7 @@ var SND = {
   click: function () { tone(700, 0, 0.05, 'sine', 0.04); },
   bell: function () { tone(880, 0, 1.2, 'sine', 0.12); tone(1320, 0, 1, 'sine', 0.05); }
 };
-function sound(n) { if (S.mute) return; try { SND[n] && SND[n](); } catch (e) {} }
+function sound(n) { if (ACADEMIC || S.mute) return; try { SND[n] && SND[n](); } catch (e) {} }
 
 /* ---------- اسکلت صفحه ---------- */
 var app = document.getElementById('app') || document.body.appendChild(h('div', { id: 'app' }));
@@ -271,11 +364,12 @@ var btnFull = h('button', { class: 'ib fs', title: 'تمام‌صفحه (F)', te
 var btnMode = h('button', { class: 'ib', onclick: function () { setMode(S.mode === 'present' ? 'student' : 'present'); } });
 var btnThink = h('button', { class: 'ib', title: 'زمان فکر کردن (T)', text: '⏱', onclick: function () { think(L.thinkSeconds || 30); } });
 var btnNotes = h('button', { class: 'ib', title: 'یادداشت ارائه‌دهنده (N)', text: '📝', onclick: function () { S.showNotes = !S.showNotes; store(); notes(); } });
+var btnBrand = h('button', { class: 'ib bbtn', title: BRAND.cta.button + ' و تماس با ' + BRAND.name, 'aria-label': BRAND.cta.button, text: '🎓', onclick: showBrand });
 var mapEl = h('nav', { class: 'map', 'aria-label': 'نقشهٔ مسیر' });
 var top = h('header', { class: 'topbar' },
   h('div', { class: 'brand' }, h('span', { class: 'mascot', text: L.mascot || '📘' }), h('div', null, h('b', { text: L.title }), h('small', { text: L.subtitle || '' }))),
   mapEl,
-  h('div', { class: 'tools' }, timeChip, starPill, badgePill, btnThink, btnNotes, btnMute, btnFull, btnMode));
+  h('div', { class: 'tools' }, timeChip, starPill, badgePill, btnBrand, btnThink, btnNotes, btnMute, btnFull, btnMode));
 var main = h('main', { class: 'stage' });
 var btnPrev = h('button', { class: 'btn ghost', onclick: function () { go(S.idx - 1); } }, '→ قبلی');
 var btnNext = h('button', { class: 'btn next', onclick: function () { go(S.idx + 1); } }, 'بعدی ←');
@@ -305,6 +399,7 @@ function floatStars(n, anchor) {
 }
 var parts = [], raf = 0, cx = cv.getContext('2d');
 function confetti(n) {
+  if (ACADEMIC) return;
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   cv.width = innerWidth; cv.height = innerHeight;
   var cs = getComputedStyle(document.documentElement);
@@ -356,6 +451,7 @@ function showText(title, text) {
 
 /* ---------- نشان‌ها ---------- */
 function award(id) {
+  if (ACADEMIC) return;
   if (!BADGES[id] || S.badges.indexOf(id) >= 0) return;
   S.badges.push(id); store();
   emit('badge.award', { badge: id });
@@ -369,7 +465,7 @@ function showBadges() {
 
 /* ---------- بازخورد، درست، هنوز نه ---------- */
 function showFb(ctx, kind, html, stars) {
-  var ic = { ok: '✅', no: '🤔', info: '💡' }[kind];
+  var ic = (ACADEMIC ? { ok: '✓', no: '↻', info: 'i' } : { ok: '✅', no: '🤔', info: '💡' })[kind];
   var box = h('div', { class: 'fb ' + kind }, h('div', { class: 'ic', text: ic }), h('div', { class: 'tx', html: html }),
     stars ? h('div', { class: 'st', text: '+' + fa(stars) + ' ⭐' }) : null);
   ctx.fb.innerHTML = ''; ctx.fb.appendChild(box); faNodes(box);
@@ -379,6 +475,7 @@ function showFb(ctx, kind, html, stars) {
 }
 function latency(ctx) { return ctx.t0 ? Date.now() - ctx.t0 : null; }
 function wrong(ctx, fb, tag, resp) {
+  if (ctx.active === false) return;
   var r = ctx.r, s = ctx.s;
   if (r.done) { showFb(ctx, 'no', fb || s.fb || DEF_NO); return; }
   r.tries++; S.streak = 0;
@@ -386,11 +483,12 @@ function wrong(ctx, fb, tag, resp) {
   tagsOf(tag).forEach(function (t) { S.tags[t] = (S.tags[t] || 0) + 1; });
   showFb(ctx, 'no', fb || s.fb || DEF_NO); sound('no');
   if (r.tries >= 2 && s.hints && r.hints < s.hints.length && ctx.hintAdd) {
-    setTimeout(function () { ctx.hintAdd(true); toast('🪜 یک پلهٔ راهنما برایت باز شد'); }, 700);
+    setTimeout(function () { if (ctx.active === false) return; ctx.hintAdd(true); toast(ACADEMIC ? 'راهنمای بعدی باز شد.' : '🪜 یک پلهٔ راهنما برایت باز شد'); }, 700);
   }
   store();
 }
 function right(ctx, fb, resp) {
+  if (ctx.active === false) return;
   var r = ctx.r, s = ctx.s;
   if (r.done) { showFb(ctx, 'ok', fb || s.praise || pick(PRAISE)); return; }
   r.done = true;
@@ -398,7 +496,7 @@ function right(ctx, fb, resp) {
   var st = 3 - Math.min(2, r.tries);
   if (r.hints >= 2) st = Math.min(st, 2);
   if (r.hints >= 3) st = 1;
-  if (s.stars === false) st = 0;
+  if (ACADEMIC || s.stars === false || s.gate === false) st = 0;
   r.stars = st; S.stars += st; if (S.mode === 'present') S.classStars += st;
   emit('item.complete', { item: sid(s), type: s.type, stars: st, attempts: r.tries + 1, hints: r.hints, latencyMs: latency(ctx) });
   if (r.tries === 0 && r.hints === 0) { S.streak++; if (S.streak >= 3) award('streak'); } else S.streak = 0;
@@ -406,13 +504,14 @@ function right(ctx, fb, resp) {
   if (r.tries >= 2) award('persistent');
   if (r.tries === 0 && r.hints > 0) award('hintwise');
   var msg = fb || s.praise || pick(PRAISE);
-  if (r.tries > 0 && S.mode !== 'present') msg += '<div class="small muted" style="margin-top:4px">🕵️ از بازخورد استفاده کردی و اشتباهت را اصلاح کردی؛ یادگیری واقعی همین است.</div>';
+  if (r.tries > 0 && S.mode !== 'present') msg += '<div class="small muted" style="margin-top:4px">' + (ACADEMIC ? 'پاسخ پس از بازبینی اصلاح شد؛ نکتهٔ تمایز را در گزارش مرور خواهید دید.' : '🕵️ از بازخورد استفاده کردی و اشتباهت را اصلاح کردی؛ یادگیری واقعی همین است.') + '</div>';
   if (s.explain) msg += '<div class="explain">' + s.explain + '</div>';
   var box = showFb(ctx, 'ok', msg, st);
   sound('ok'); if (st) floatStars(st, box);
   store(); hud(); navState(); map(); checkStage(s.stage);
 }
 function markDone(ctx, how) {
+  if (ctx.active === false) return;
   if (ctx.r.done) return;
   emit('item.done', { item: sid(ctx.s), type: ctx.s.type, how: how || 'completed', latencyMs: latency(ctx) });
   ctx.r.done = true; store(); navState(); map(); checkStage(ctx.s.stage);
@@ -428,7 +527,7 @@ function checkStage(id) {
   var used = qs.some(function (s) { return S.res[s._i] && S.res[s._i].hints; });
   if (hadHints && !used) award('independent');
   var st = stage(id);
-  setTimeout(function () { confetti(); sound('stage'); if (st) toast(st.icon + ' مرحلهٔ «' + st.title + '» کامل شد!', 'big'); map(); }, 500);
+  setTimeout(function () { confetti(); sound('stage'); if (st) toast((ACADEMIC ? '' : st.icon + ' ') + 'مرحلهٔ «' + st.title + '» کامل شد.', 'big'); map(); }, 500);
 }
 
 /* ---------- نردبان راهنمایی ---------- */
@@ -438,7 +537,7 @@ function hintsUI(ctx) {
   var list = h('div');
   var btn = h('button', { class: 'btn ghost', type: 'button' });
   function lbl() {
-    btn.textContent = r.hints >= s.hints.length ? '🪜 همهٔ پله‌های راهنما باز شد' : '🪜 راهنما (' + fa(r.hints) + ' از ' + fa(s.hints.length) + ')';
+    btn.textContent = (ACADEMIC ? '' : '🪜 ') + (r.hints >= s.hints.length ? 'همهٔ پله‌های راهنما باز شد' : 'راهنما (' + fa(r.hints) + ' از ' + fa(s.hints.length) + ')');
     btn.disabled = r.hints >= s.hints.length;
   }
   function draw(k) {
@@ -455,6 +554,45 @@ function hintsUI(ctx) {
 /* ---------- رندر اسلایدها ---------- */
 var R = {};
 var CUR = null;
+var LIVE_CONTEXTS = [], WORKSHEET_CARDS = {}, worksheetFinish = null, worksheetProgress = null;
+function disposeActivities() {
+  LIVE_CONTEXTS.forEach(function (ctx) {
+    ctx.active = false;
+    (ctx.dispose || []).slice().forEach(function (dispose) { try { dispose(); } catch (error) { console.error(error); } });
+  });
+  LIVE_CONTEXTS = []; WORKSHEET_CARDS = {}; worksheetFinish = null; worksheetProgress = null;
+}
+function contextFor(s, card) {
+  var ctx = {s: s, i: s._i, r: GATED[s.type] ? res(s._i) : {tries: 0, hints: 0, done: true, stars: 0},
+    card: card, fb: h('div', {class: 'fbwrap', 'aria-live': 'polite'}), t0: Date.now(), active: true, dispose: []};
+  LIVE_CONTEXTS.push(ctx); return ctx;
+}
+function worksheetRemaining() { return SL.filter(function (s) { return s.type !== 'end' && !isDone(s._i); }).length; }
+function activateWorksheet(ctx) {
+  var s = ctx.s;
+  if (S.idx === s._i && LAST_SLIDE === sid(s)) { CUR = ctx; return; }
+  var from = LAST_SLIDE, dwell = dwellClose(); S.idx = s._i; S.max = Math.max(S.max, s._i); CUR = ctx;
+  LAST_SLIDE = sid(s); SLIDE_T0 = Date.now();
+  emit('slide.view', {item: sid(s), type: s.type, stage: s.stage, index: s._i, from: from, prevDwellMs: dwell}); store(); navState();
+}
+function renderWorksheet() {
+  disposeActivities(); main.innerHTML = '';
+  SL.forEach(function (s) {
+    if (s.type === 'end') return;
+    var card = h('section', {class: 'slide t-' + s.type, id: 'worksheet-' + sid(s), tabindex: '-1', 'aria-label': plain(s.q || s.title || TYPE_LBL[s.type] || 'فعالیت')});
+    var ctx = contextFor(s, card); WORKSHEET_CARDS[s._i] = ctx;
+    card.addEventListener('focusin', function () { activateWorksheet(ctx); });
+    (R[s.type] || R.content)(ctx); main.appendChild(card); faNodes(card);
+  });
+  CUR = WORKSHEET_CARDS[S.idx] || LIVE_CONTEXTS[0];
+  worksheetProgress = h('p', {class: 'muted', 'aria-live': 'polite'});
+  worksheetFinish = h('button', {class: 'btn acc', type: 'button', text: 'پایان کاربرگ و مشاهدهٔ گزارش', onclick: function () {
+    if (worksheetRemaining() && S.mode !== 'present') return;
+    var end = SL.findIndex(function (s) { return s.type === 'end'; }); if (end >= 0) go(end);
+  }});
+  main.appendChild(h('section', {class: 'slide worksheet-actions'}, worksheetProgress, worksheetFinish));
+  hud(); navState(); map(); notes(); btnAns.classList.add('hide');
+}
 
 function head(ctx, title, type) {
   var st = stage(ctx.s.stage);
@@ -573,6 +711,7 @@ R.input = function (ctx) {
   var go_ = h('button', { class: 'btn', type: 'button', text: 'بررسی ✓' });
   row.appendChild(go_);
   if (r.last) ins.forEach(function (x, k) { x.value = r.last[k] || ''; });
+  ins.forEach(function (input) { input.addEventListener('input', function () { r.last = ins.map(function (x) { return String(x.value).slice(0, 512); }); store(); }); });
   function check() {
     var vals = ins.map(function (x) { return x.value; });
     r.last = vals;
@@ -601,6 +740,7 @@ function judge(s, kind, vals) {
   var rules = s.wrong || [], i, w;
   if (kind === 'fraction') {
     if (vals[0] === '' || vals[1] === '') return { empty: true, msg: 'هر دو خانه (صورت و مخرج) را پر کن.' };
+    if (!/^-?[0-9]+$/.test(en(vals[0])) || !/^-?[0-9]+$/.test(en(vals[1]))) return {empty: true, msg: 'صورت و مخرج باید عدد صحیح باشند.'};
     var n = parseInt(en(vals[0]), 10), d = parseInt(en(vals[1]), 10);
     if (isNaN(n) || isNaN(d)) return { empty: true, msg: 'فقط عدد بنویس.' };
     if (d === 0) return { ok: false, fb: 'مخرج نمی‌تواند صفر باشد؛ یعنی کیک به صفر تکه تقسیم شده!' };
@@ -616,7 +756,8 @@ function judge(s, kind, vals) {
   if (kind === 'number') {
     var raw = en(vals[0]).replace(/\s/g, '').replace(/\//g, '.');
     if (raw === '') return { empty: true };
-    var v = parseFloat(raw);
+    if (!/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(raw)) return {empty: true, msg: 'پاسخ را فقط به‌صورت عدد بنویس.'};
+    var v = Number(raw);
     if (isNaN(v)) return { empty: true, msg: 'پاسخ را به‌صورت عدد بنویس.' };
     var tol = s.tol == null ? 1e-9 : s.tol;
     var ans = Array.isArray(s.answer) ? s.answer : [s.answer];
@@ -784,12 +925,21 @@ R.custom = function (ctx) {
 function api(ctx) {
   var r = ctx.r;
   return {
-    el: ctx.card, state: r.state || (r.state = {}), save: store, mode: S.mode, lesson: L,
+    el: ctx.card, state: r.state || (r.state = {}), save: function () { if (ctx.active) store(); }, mode: S.mode, lesson: L,
+    isActive: function () { return ctx.active; },
+    onDispose: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      if (!ctx.active) { callback(); return function () {}; }
+      ctx.dispose.push(callback);
+      return function () { var at = ctx.dispose.indexOf(callback); if (at >= 0) ctx.dispose.splice(at, 1); };
+    },
+    session: function () { return S; },
     isDone: function () { return !!r.done; },
     right: function (fb, resp) { right(ctx, fb, resp); }, wrong: function (fb, tag, resp) { wrong(ctx, fb, tag, resp); },
-    emit: function (type, data) { emit('custom.' + String(type || 'event'), Object.assign({ item: sid(ctx.s) }, data || {})); },
-    info: function (html) { showFb(ctx, 'info', html); }, done: function () { markDone(ctx); },
-    tag: function (t) { tagsOf(t).forEach(function (x) { S.tags[x] = (S.tags[x] || 0) + 1; }); emit('item.tag', { item: sid(ctx.s), tags: tagsOf(t) }); store(); },
+    emit: function (type, data) { if (!ctx.active) return; emit('custom.' + String(type || 'event'), Object.assign({ item: sid(ctx.s) }, data || {})); },
+    info: function (html) { if (!ctx.active) return; showFb(ctx, 'info', html); }, done: function () { markDone(ctx); },
+    clearFeedback: function () { if (!ctx.active) return; ctx.fb.innerHTML = ''; delete r.fbk; store(); },
+    tag: function (t) { if (!ctx.active) return; tagsOf(t).forEach(function (x) { S.tags[x] = (S.tags[x] || 0) + 1; }); emit('item.tag', { item: sid(ctx.s), tags: tagsOf(t) }); store(); },
     fa: fa, en: en, h: h, faNodes: faNodes, sound: sound, confetti: confetti, toast: toast,
     get: function (id) { for (var i = 0; i < SL.length; i++) if (SL[i].id === id) return S.res[i] || null; return null; },
     name: S.name
@@ -803,6 +953,11 @@ R.end = function (ctx) {
   if (!S.completed) { S.completed = true; dwellClose(); emit('lesson.complete', summary()); store(); }
   var nm = S.name ? S.name + '، ' : '';
   head(ctx, s.title || ('🎉 ' + nm + 'به مقصد رسیدی!'), 'end');
+  if (ACADEMIC && typeof L.renderEnd === 'function') {
+    L.renderEnd(ctx.card, api(ctx));
+    ctx.card.appendChild(brandCard('end'));
+    return;
+  }
   var pct = MAXSTARS ? Math.round(100 * S.stars / MAXSTARS) : 0;
   var best = Math.max(S.best || 0, S.stars);
   var sum = h('div', { class: 'sumgrid' },
@@ -812,6 +967,8 @@ R.end = function (ctx) {
   if (S.mode === 'present') sum.appendChild(h('div', { class: 'sumbox' }, h('div', { class: 'v', text: fa(S.classStars) + ' / ' + fa(CLASSGOAL) }), h('div', { class: 'small', text: S.classStars >= CLASSGOAL ? 'هدف کلاس محقق شد! 🎉' : 'ستاره‌های کلاس' })));
   ctx.card.appendChild(sum);
   ctx.card.appendChild(h('p', { class: 'center muted', text: pct >= 85 ? 'فوق‌العاده! بیشتر پاسخ‌ها را در همان تلاش‌های اول پیدا کردی.' : pct >= 60 ? 'خیلی خوب! هر جا اشتباه کردی، از بازخورد استفاده کردی و جلو رفتی.' : 'آفرین که تا آخر آمدی! ستاره‌ها مهم نیستند؛ مهم این است که حالا چیزهایی را می‌دانی که اول درس نمی‌دانستی.' }));
+
+  ctx.card.appendChild(brandCard('end'));
 
   ctx.card.appendChild(h('h3', { text: '🏅 نشان‌های یادگیری' }));
   var bg = h('div', { class: 'badgegrid' });
@@ -874,6 +1031,7 @@ function report() {
   var d = ''; try { d = new Date().toLocaleDateString('fa-IR'); } catch (e) {}
   lines.push('🗓 ' + d);
   if (L.reportCode !== false) { var code = reportCode(); if (code) lines.push('🔑 کد گزارش: ' + code); }
+  lines.push('━━━━━━━━━━', brandText());
   return lines.join('\n');
 }
 function copyText(t) {
@@ -945,11 +1103,12 @@ function setMode(m) {
 }
 function hud() {
   document.body.classList.toggle('present', S.mode === 'present');
-  starPill.textContent = S.mode === 'present' ? '⭐ کلاس ' + fa(S.classStars) + ' / ' + fa(CLASSGOAL) : '⭐ ' + fa(S.stars);
+  starPill.textContent = ACADEMIC ? fa(SL.filter(function (s) { return gated(s) && S.res[s._i] && S.res[s._i].done; }).length) + ' فعالیت کامل' : S.mode === 'present' ? '⭐ کلاس ' + fa(S.classStars) + ' / ' + fa(CLASSGOAL) : '⭐ ' + fa(S.stars);
+  if (ACADEMIC) { starPill.title = 'پیشرفت فعالیت‌ها'; badgePill.hidden = true; btnMute.hidden = true; }
   badgePill.textContent = '🏅 ' + fa(S.badges.length);
   btnMute.textContent = S.mute ? '🔇' : '🔊';
-  btnMode.textContent = S.mode === 'present' ? '🎒' : '🧑‍🏫';
-  btnMode.title = S.mode === 'present' ? 'رفتن به حالت دانش‌آموز' : 'رفتن به حالت ارائه (معلم)';
+  btnMode.textContent = ACADEMIC ? (S.mode === 'present' ? 'مطالعه' : 'ارائه') : S.mode === 'present' ? '🎒' : '🧑‍🏫';
+  btnMode.title = ACADEMIC ? 'تغییر حالت مطالعه / ارائهٔ آزاد' : S.mode === 'present' ? 'رفتن به حالت دانش‌آموز' : 'رفتن به حالت ارائه (معلم)';
   btnThink.classList.toggle('hide', S.mode !== 'present');
   btnNotes.classList.toggle('hide', S.mode !== 'present');
   btnNotes.classList.toggle('on', !!S.showNotes);
@@ -970,8 +1129,18 @@ function map() {
   });
   var curEl = mapEl.querySelector('.cur'); if (curEl && curEl.scrollIntoView) try { curEl.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {}
 }
-function reachable(i) { for (var k = 0; k < i; k++) if (!isDone(k)) return false; return true; }
+function reachable(i) { if (WORKSHEET && SL[i].type !== 'end') return true; for (var k = 0; k < i; k++) if (!isDone(k)) return false; return true; }
 function navState() {
+  if (WORKSHEET && SL[S.idx].type !== 'end') {
+    var remaining = worksheetRemaining(), total = SL.filter(function (s) { return gated(s); }).length;
+    btnPrev.classList.add('hide'); btnNext.classList.add('hide');
+    progI.style.width = (total ? 100 * (total - remaining) / total : 100) + '%';
+    cntEl.textContent = fa(total - remaining) + ' / ' + fa(total);
+    if (worksheetFinish) worksheetFinish.disabled = remaining > 0 && S.mode !== 'present';
+    if (worksheetProgress) worksheetProgress.textContent = remaining ? fa(remaining) + ' فعالیت باقی مانده است؛ می‌توانی به ترتیب دلخواه ادامه بدهی.' : 'تمرین‌ها کامل شد؛ گزارش و خودارزیابی آماده است.';
+    return;
+  }
+  btnPrev.classList.remove('hide');
   var i = S.idx, last = i >= SL.length - 1;
   btnPrev.disabled = i === 0;
   btnNext.classList.toggle('hide', last);
@@ -989,12 +1158,14 @@ function notes() {
 }
 function go(i, force) {
   i = Math.max(0, Math.min(SL.length - 1, i));
-  if (!force && S.mode !== 'present' && i > S.idx) {
+  if (WORKSHEET && SL[i].type === 'end' && !force && S.mode !== 'present' && worksheetRemaining()) { toast('برای گزارش نهایی، تمرین‌های باقی‌مانده را کامل کن.'); return; }
+  if (!WORKSHEET && !force && S.mode !== 'present' && i > S.idx) {
     for (var k = S.idx; k < i; k++) if (!isDone(k)) {
-      if (k === S.idx) { toast('اول این فعالیت را کامل کن 🙂 بعد «بعدی» باز می‌شود.'); var c = main.querySelector('.slide'); if (c) { c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); } return; }
+      if (k === S.idx) { toast(ACADEMIC ? 'برای ادامه، این فعالیت را کامل کنید. راهنما در دسترس است.' : 'اول این فعالیت را کامل کن 🙂 بعد «بعدی» باز می‌شود.'); var c = main.querySelector('.slide'); if (c) { c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); } return; }
       i = k; break;
     }
   }
+  if (WORKSHEET && WORKSHEET_CARDS[i]) { activateWorksheet(WORKSHEET_CARDS[i]); WORKSHEET_CARDS[i].card.focus(); WORKSHEET_CARDS[i].card.scrollIntoView({block: 'start'}); return; }
   S.idx = i; S.max = Math.max(S.max, i); store(); render();
   window.scrollTo(0, 0);
 }
@@ -1003,6 +1174,13 @@ function resetSlide(i) {
   if (r && r.stars && S.mode !== 'present') { S.stars = Math.max(0, S.stars - r.stars); }
   delete S.res[i]; emit('item.reset', { item: sid(SL[i]) }); store(); render(); toast('↺ این اسلاید از نو شروع شد');
 }
+function restartLesson() {
+  // Reset in memory before saving; a reload-only reset can race visibilitychange.
+  emit('session.restart', { previous: summary() });
+  var keep = { name: S.name, mode: S.mode, mute: S.mute };
+  S = Object.assign(fresh(), keep, { started: true }); LAST_SLIDE = null;
+  store(); go(0, true);
+}
 function render() {
   var s = SL[S.idx];
   if (S.started && LAST_SLIDE !== sid(s)) {
@@ -1010,10 +1188,10 @@ function render() {
     LAST_SLIDE = sid(s); SLIDE_T0 = Date.now();
     emit('slide.view', { item: sid(s), type: s.type, stage: s.stage, index: s._i, from: from, prevDwellMs: from ? dwell : null });
   }
-  main.innerHTML = '';
+  if (WORKSHEET && s.type !== 'end') { renderWorksheet(); return; }
+  disposeActivities(); main.innerHTML = '';
   var card = h('section', { class: 'slide t-' + s.type });
-  var r = (gated(s) || s.type === 'custom') ? res(S.idx) : { tries: 0, hints: 0, done: true, stars: 0 };
-  var ctx = { s: s, i: S.idx, r: r, card: card, fb: h('div', { class: 'fbwrap', 'aria-live': 'polite' }), t0: Date.now() };
+  var ctx = contextFor(s, card);
   CUR = ctx;
   (R[s.type] || R.content)(ctx);
   main.appendChild(card); faNodes(card);
@@ -1026,9 +1204,10 @@ function fullscreen() {
   else if (el.requestFullscreen) el.requestFullscreen(); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 }
 document.addEventListener('keydown', function (e) {
-  if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable]')) return;
+  if (e.target.closest && e.target.closest('input,textarea,select,[contenteditable],.term-popover,[data-term]')) return;
   if (document.querySelector('.startov')) return;
   var k = e.key;
+  if (WORKSHEET && SL[S.idx].type !== 'end' && ['ArrowLeft', 'ArrowRight', 'PageDown', 'PageUp'].indexOf(k) >= 0) return;
   if (k === 'ArrowLeft' || k === 'PageDown' || (k === ' ' && S.mode === 'present')) { e.preventDefault(); go(S.idx + 1); }
   else if (k === 'ArrowRight' || k === 'PageUp') { e.preventDefault(); go(S.idx - 1); }
   else if (k === 'f' || k === 'F' || k === 'ب') fullscreen();
@@ -1037,8 +1216,6 @@ document.addEventListener('keydown', function (e) {
 });
 
 /* ---------- صفحهٔ شروع ---------- */
-/* امضای برند: نشان «پ هوشمند» پای‌آموز (سرمه‌ای و آبی، نقطهٔ کهربایی) */
-var MARK = '<svg class="kz-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true" focusable="false"><rect width="512" height="512" rx="116" fill="#0E2C52"/><g transform="translate(0 -32)"><path d="M352 150Q372 150 372 170V244Q372 300 316 300H196Q140 300 140 244V216Q140 196 159 196Q178 196 178 216V238Q178 260 200 260H312Q332 260 332 238V170Q332 150 352 150Z" fill="#DDE7FF"/><g stroke="#BFD2FF" stroke-width="10" stroke-linecap="round" opacity=".8"><line x1="220" y1="350" x2="292" y2="350"/><line x1="220" y1="350" x2="256" y2="406"/><line x1="292" y1="350" x2="256" y2="406"/></g><circle cx="220" cy="350" r="22" fill="#BFD2FF"/><circle cx="292" cy="350" r="22" fill="#BFD2FF"/><circle cx="256" cy="406" r="26" fill="#F1CC59"/></g></svg>';
 function startScreen() {
   var nameIn = h('input', { class: 'tin wide', placeholder: 'اسمت چیست؟ (اختیاری)', style: 'width:100%;text-align:center', autocomplete: 'off' });
   nameIn.value = S.name || '';
@@ -1061,9 +1238,11 @@ function startScreen() {
     L.intro ? h('div', { class: 'center', html: L.intro }) : null,
     (L.objectives && L.objectives.length) ? h('div', null, h('b', { text: '🎯 در پایان این درس می‌توانی:' }), h('ul', { class: 'obj' }, L.objectives.map(function (o) { return h('li', { html: o }); }))) : null,
     (!STORE_OK && !HOST.persist) ? h('div', { class: 'callout warn small', text: '⚠️ در این صفحه پیشرفتت ذخیره نمی‌شود؛ اگر صفحه را ببندی، درس از اول شروع می‌شود. بهتر است درس را در یک نشست تمام کنی.' }) : null,
-    HOST.persist ? h('div', { class: 'callout ok small', text: '☁️ پیشرفتت در حساب کاربری‌ات ذخیره می‌شود.' }) : null,
+    HOST.persist ? h('div', { class: 'callout ok small', text: '☁️ ذخیرهٔ پیشرفت از طریق میزبان انجام می‌شود؛ وضعیت ثبت را در صفحهٔ میزبان ببین.' }) : null,
     nameIn, modes,
-    h('p', { class: 'center muted small kz-sig', style: 'margin-top:14px', html: L.credit || (MARK + '<span>ساخته‌شده با موتور «کلاس زنده» · <b>پای‌آموز</b> · بدون نیاز به اینترنت</span>') }));
+    (L.credit ? h('p', { class: 'center muted small', style: 'margin-top:14px', html: L.credit }) : null),
+    h('a', { class: 'brandline', href: BRAND.site.url, target: '_blank', rel: 'noopener', onclick: function () { emit('brand.click', { target: 'site', where: 'start' }); } },
+      h('b', { class: 'mono', text: 'H.B' }), h('span', null, 'ساختهٔ ', h('b', { text: BRAND.name }), '، ' + BRAND.site.label), h('small', { text: 'موتور «کلاس زنده»، بدون نیاز به اینترنت' })));
   var ov = h('div', { class: 'startov' }, card);
   faNodes(card);
   document.body.appendChild(ov);
@@ -1075,6 +1254,6 @@ if (/#present/.test(location.hash)) { S.mode = 'present'; S.started = true; rend
 else if (L.noStart) { S.started = true; render(); }
 else { render(); startScreen(); }
 hello();
-window.IL = { go: go, state: function () { return S; }, fa: fa, en: en, h: h, toast: toast, confetti: confetti, sound: sound, copy: copyText,
-  ask: ask, showText: showText, emit: emit, events: function () { return LOG.slice(); }, summary: summary, reportCode: reportCode, catalog: catalog, version: ENGINE_VERSION, contentMode: CONTENT_MODE };
+window.IL = { go: go, restart: restartLesson, state: function () { return S; }, fa: fa, en: en, h: h, toast: toast, confetti: confetti, sound: sound, copy: copyText,
+  ask: ask, showText: showText, emit: emit, events: function () { return LOG.slice(); }, summary: summary, reportCode: reportCode, catalog: catalog, brand: BRAND, version: ENGINE_VERSION, contentMode: CONTENT_MODE };
 })();

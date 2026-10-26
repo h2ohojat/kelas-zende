@@ -29,8 +29,12 @@ jobs:
       - name: kz-meta and build rules
         run: node _src/test.js
 
+      - name: Engine unit regressions
+        run: node _src/run-tests.cjs
+
       - name: Browser tests (sandboxed iframe)
         run: |
           npm install --no-save --no-package-lock playwright@1
           npx playwright install --with-deps chromium
           node _src/e2e.mjs
+          node _src/block-kit.browser.mjs

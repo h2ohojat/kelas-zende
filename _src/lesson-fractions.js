@@ -84,7 +84,7 @@ function shadeTask(rounds) {
 
 var LESSON = {
   id: 'fractions-kasri-v1',
-  version: 2,                     // ۲: شناسهٔ پایدار اسلایدها (موتور ۱٫۲)
+  version: 4,                     // ۲: شناسهٔ پایدار اسلایدها (موتور ۱٫۲)
   contentMode: 'syllabus',
   durationMinutes: 35,
   concepts: ['کسر', 'صورت و مخرج', 'مقایسهٔ کسرها'],

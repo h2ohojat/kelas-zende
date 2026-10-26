@@ -1,0 +1,10 @@
+{
+  "name": "kelas-zende-content-engine",
+  "version": "1.2.2",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "node _src/build.js",
+    "test": "node _src/run-tests.cjs"
+  }
+}
