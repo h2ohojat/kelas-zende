@@ -10,3 +10,8 @@ HANDOFF.md
 _tools/
 _planning/
 _src/planning/
+
+node_modules/
+*.log
+.env*
+private/

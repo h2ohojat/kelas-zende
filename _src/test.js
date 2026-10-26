@@ -34,12 +34,12 @@ test('every published lesson has a valid kz-meta', () => {
 
 test('built files carry the same kz-meta as their source (build is up to date)', () => {
   const engine = S('engine.js').match(/var ENGINE_VERSION = '([^']+)'/)[1];
-  assert.strictEqual(engine, '1.2.0');
+  assert.strictEqual(engine, '1.2.2');
   for (const [file, src] of Object.entries(LESSONS)) {
     const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
     assert.deepStrictEqual(meta.read(html), meta.build(S(src), engine), file + ': run node _src/build.js');
     assert.ok(html.indexOf('id="kz-meta"') < html.indexOf('<style>'), file + ': kz-meta sits in <head>');
-    assert.ok(html.includes("var ENGINE_VERSION = '1.2.0'"), file);
+    assert.ok(html.includes("var ENGINE_VERSION = '1.2.2'"), file);
   }
   assert.strictEqual(meta.read(fs.readFileSync(path.join(ROOT, '04-prompt-kit.html'), 'utf8')), null, 'the prompt kit is not a lesson');
 });
@@ -100,7 +100,7 @@ test('the engine uses the brand colours and signature', () => {
   const css = S('engine.css');
   assert.ok(css.includes('--p:#1f5fd6') && css.includes('--p-ink:#0e2c52'));
   const js = S('engine.js');
-  assert.ok(js.includes('kz-mark') && js.includes('پای‌آموز'));
+  assert.ok(js.includes('brandCard') && js.includes('پای‌آموز'));
   assert.ok(js.includes("emit('lesson.summary'"));
 });
 

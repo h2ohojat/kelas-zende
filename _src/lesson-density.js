@@ -23,7 +23,7 @@ var OBJS = [
 
 var LESSON = {
   id: 'density-g7-v1',
-  version: 2,                     // ۲: شناسهٔ پایدار اسلایدها (موتور ۱٫۲)
+  version: 4,                     // ۲: شناسهٔ پایدار اسلایدها (موتور ۱٫۲)
   contentMode: 'syllabus',        // سرفصل‌محور، مثال‌ها و بیان از خودمان
   durationMinutes: 40,
   concepts: ['چگالی', 'جرم', 'حجم', 'شناوری'],

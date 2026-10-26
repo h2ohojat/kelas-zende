@@ -1,0 +1,8 @@
+{
+  "kind": "lesson",
+  "id": "lab-robot-blocks",
+  "title": "کارگاه ربات بلوکی",
+  "sources": ["model.js", "levels.js", "lesson.js"],
+  "css": ["style.css"],
+  "modules": ["block-kit"]
+}

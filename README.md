@@ -79,3 +79,10 @@ node _src/e2e.mjs       # آزمون مرورگر در iframe ایزوله (اگ
 - فونت [وزیرمتن](https://github.com/rastikerdar/vazirmatn) اثر صابر راستی‌کردار: [SIL Open Font License](fonts/OFL.txt)
 
 </div>
+
+
+## کارگاه ربات بلوکی
+
+۲۰مرحله برای۱۰تا۱۲سال؛ ساخت از منبع مشترک بلوک‌کیت، با ذخیره/ادامه و گزارش درس. [نمونه](content/lab-robot-blocks.html) و [راهنمای ساخت](docs/AUTHORING_GUIDE.md). موتور۱٫۲٫۲ و بلوک‌کیت۰٫۱٫۱، بدون تغییر قرارداد kelas v1.
+
+کتابخانهٔ Blockly از مجوز جداگانهٔ Apache-2.0 استفاده می‌کند؛ متن مجوز آن همراه منبع نگه‌داری شده است.

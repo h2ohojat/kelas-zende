@@ -16,9 +16,9 @@ const engine = fs.readFileSync(path.join(DIR, 'engine.js'), 'utf8');
 const built = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // A lesson written for 1.1 (no stable ids, no contentMode) with today's engine, as a host would rebuild it.
 const legacy = built('03-lesson-density.html')
-  .replace(/<script type="application\/json" id="kz-meta">[\s\S]*?<\/script>\n/, '')
+  .replace(/<script type="application\/json" id="kz-meta">[\s\S]*?<\/script>\n?/, '')
   .replace(/<script>\n\/\* =+\n   محتوای درس[\s\S]*?<\/script>/, () => '<script>\n' + fs.readFileSync(path.join(DIR, 'test/legacy-density-1.1.js'), 'utf8') + '\n</script>');
-if (legacy.includes("id: 'drop-lab'")) throw new Error('legacy fixture was not swapped in');
+if (!legacy.includes('id="app"') || !legacy.includes('var LESSON') || legacy.includes("id: 'drop-lab'")) throw new Error('legacy fixture was not swapped in');
 
 const CASES = [
   { name: 'density', html: built('03-lesson-density.html'), objectives: 3 },
@@ -57,9 +57,9 @@ for (const c of CASES) {
 
     const hello = await page.evaluate(() => window.__msgs.find((m) => m.kind === 'hello'));
     console.log('•', c.name);
-    ok(hello.engine === '1.2.0', 'hello reports engine 1.2.0');
+    ok(hello.engine === '1.2.2', 'hello reports engine 1.2.2');
     ok(hello.lesson.contentMode === 'syllabus', 'contentMode defaults to syllabus');
-    ok(await frame.locator('.kz-sig .kz-mark').count() === 1, 'brand signature on the start screen');
+    ok(await frame.locator('.startov .brandline').count() === 1, 'brand signature on the start screen');
     const ids = hello.lesson.items.map((i) => i.id);
     if (c.legacy) {
       ok(ids.includes('s1') && ids.includes('predict'), 'old slides fall back to s{n}, given ids are kept');
@@ -92,7 +92,7 @@ for (const c of CASES) {
     ok(sum.reflect === 'چگالی یعنی جرم در هر حجم.' && sum.reflectLength > 0, 'it holds the reflection');
     ok(sum.contentMode === 'syllabus' && typeof sum.stars === 'number', 'it holds the score and contentMode');
     ok(msgs.some((m) => m.kind === 'summary' && m.summary.final), 'a summary message is posted too');
-    ok(msgs.filter((m) => m.kind === 'event').every((m) => m.lesson.engine === '1.2.0'), 'events name the engine');
+    ok(msgs.filter((m) => m.kind === 'event').every((m) => m.lesson.engine === '1.2.2'), 'events name the engine');
     ok(errors.length === 0, 'no errors: ' + errors.join(' | '));
     if (shots) await page.screenshot({ path: path.join(shots, `engine-${c.name.split(' ')[0]}-390-end.png`) });
     await page.close();

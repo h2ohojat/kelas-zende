@@ -1,0 +1,15 @@
+{
+  "package": "blockly",
+  "version": "13.4.0",
+  "license": "Apache-2.0",
+  "upstream": {
+    "blockly_compressed.js": "cc761aa447e0d4990e6f7a22a5e173d3a67d7d2775960ef10f80d647e6fe4841",
+    "msg/fa.js": "05bfd2af763d3cce9431020b1f84b1f66c23d036ac4ade103579ce6ff843cb49",
+    "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "patch": "audio fetch removed",
+  "output": {
+    "blockly.js": "0879b33b32a7aea125c9958ac6fc56e2fed6e206fef8339fda869257a9b53f9a",
+    "blockly-fa.js": "05bfd2af763d3cce9431020b1f84b1f66c23d036ac4ade103579ce6ff843cb49"
+  }
+}

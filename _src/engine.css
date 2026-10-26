@@ -1,9 +1,8 @@
 /* ============ موتور طرح درس تعاملی — ظاهر ============ */
 :root{
-  /* رنگ‌های برند پای‌آموز (۱٫۲): آبی عمل و سرمه‌ای؛ هر درس می‌تواند با theme رنگ خودش را بگذارد */
   --p:#1f5fd6; --p-soft:#eaf0fc; --p-ink:#0e2c52;
   --a:#f2a31b; --a-soft:#fff4da;
-  --bg:#f4f3ef; --card:#ffffff; --ink:#101c30; --muted:#5d6678; --line:#e3e1da;
+  --bg:#f6f4ef; --card:#ffffff; --ink:#1e2240; --muted:#666a82; --line:#e5e1d8;
   --ok:#128a5c; --ok-soft:#e2f5ec; --no:#c2590f; --no-soft:#fff0e0; --info:#2a64ad; --info-soft:#e7f0fb;
   --r:18px; --fs:17px; --maxw:880px;
   --font: Vazirmatn, Vazir, Shabnam, Sahel, "Segoe UI", Tahoma, sans-serif;
@@ -290,7 +289,7 @@ textarea.refl{width:100%;min-height:80px;border:2px solid var(--line);border-rad
   .map{order:3;flex-basis:100%;justify-content:flex-start}
   .chip .cl{display:none}
   .chip.cur .cl{display:inline}
-  .tools{margin-inline-start:auto}
+  .tools{margin-inline-start:auto;flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;row-gap:4px;min-width:0}
   .stage{padding:14px 10px 110px}
   .navbar{padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
   .navbar .btn{padding:10px 14px}
@@ -299,6 +298,6 @@ textarea.refl{width:100%;min-height:80px;border:2px solid var(--line);border-rad
 }
 @media print{.topbar,.navbar,.notes,.toasts{display:none}.stage{padding:0}.slide{box-shadow:none}}
 
-/* ---------- امضای برند (۱٫۲) ---------- */
-.kz-sig{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap}
-.kz-mark{flex:0 0 auto;border-radius:6px}
+/* Worksheet shares lesson tokens and activity components. */
+.worksheet .stage{display:grid;gap:18px;max-width:var(--maxw);margin-inline:auto}.worksheet .slide{margin:0;scroll-margin-top:120px}.worksheet-actions{text-align:center}.worksheet .slide:focus{outline:3px solid var(--p);outline-offset:4px}.worksheet .btn,.worksheet .opt{min-height:44px}
+@media print{.worksheet .stage{display:block}.worksheet .slide{break-inside:avoid;margin-bottom:12px;border:1px solid var(--line)}.worksheet-actions,.worksheet .startov{display:none}}

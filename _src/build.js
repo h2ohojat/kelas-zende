@@ -1,66 +1,107 @@
-// ساخت فایل‌های تک‌فایلی از منابع: node _src/build.js
-const fs = require('fs');
-const path = require('path');
-const S = (f) => fs.readFileSync(path.join(__dirname, f), 'utf8');
-const has = (...fs_) => fs_.every((f) => fs.existsSync(path.join(__dirname, f)));
-const OUT = path.join(__dirname, '..');
+// Compatibility entry point: node _src/build.js [--only=05-template.html]
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const KZ = require('./kz-meta');
+const {escapeHtml, inlineScript, read, contained, validatePackage, writeOutputs} = require('./build-common');
+const ROOT = path.resolve(__dirname, '..');
+const S = (f) => read(contained(__dirname, f));
+const has = (...names) => names.every((name) => fs.existsSync(contained(__dirname, name)));
 
-// فونت وزیرمتن (متغیر، همهٔ وزن‌ها) درون فایل جاسازی می‌شود تا بدون اینترنت و روی هر سیستمی یکسان دیده شود
-const FONT = path.join(OUT, 'fonts', 'Vazirmatn-Variable.woff2');
-const fontFace = fs.existsSync(FONT)
-  ? `@font-face{font-family:Vazirmatn;src:url(data:font/woff2;base64,${fs.readFileSync(FONT).toString('base64')}) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}\n`
-  : '';
-
-const css = fontFace + S('engine.css'), engine = S('engine.js'), toolkit = S('toolkit.js');
-const meta = require('./meta');
-const ENGINE_VERSION = (engine.match(/var ENGINE_VERSION = '([^']+)'/) || [])[1];
-
-// امضای برند در زبانهٔ مرورگر: نشان «پ هوشمند»
-const ICON = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="116" fill="#0E2C52"/><g transform="translate(0 -32)"><path d="M352 150Q372 150 372 170V244Q372 300 316 300H196Q140 300 140 244V216Q140 196 159 196Q178 196 178 216V238Q178 260 200 260H312Q332 260 332 238V170Q332 150 352 150Z" fill="#DDE7FF"/><circle cx="220" cy="350" r="22" fill="#BFD2FF"/><circle cx="292" cy="350" r="22" fill="#BFD2FF"/><circle cx="256" cy="406" r="26" fill="#F1CC59"/></g></svg>');
-
-/*
- * A lesson page (engine + LESSON source) also carries <script type="application/json" id="kz-meta">:
- * what the lesson is, read by a host site without running any JavaScript (_src/meta.js).
- */
-function page(title, scripts, body = '<div id="app"></div>', lessonSrc = null) {
-  const kz = lessonSrc ? meta.block(meta.build(lessonSrc, ENGINE_VERSION)) + '\n' : '';
-  return `<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title>
-<link rel="icon" href="${ICON}">
-${kz}<style>
-${css}
-</style>
-</head>
-<body>
-${body}
-${scripts.map((s) => `<script>\n${s}\n</script>`).join('\n')}
-</body>
-</html>
-`;
+function lessonPlan() {
+  const jobs = {};
+  const add = (output, title, sources, css = [], body = null, kind = 'lesson') => {
+    jobs[output] = {kind, title, sources, css, body};
+  };
+  add('index.html', 'کلاس زنده — درس، کاربرگ و بازی تعاملی', [], [], 'index-page.html', 'tool');
+  add('01-workshop.html', 'یک فایل، یک کلاس زنده — کارگاه', ['toolkit.js', 'workshop.js']);
+  add('02-lesson-fractions.html', 'قنادی آقای کسری — مقایسهٔ کسرها', ['lesson-fractions.js']);
+  add('03-lesson-density.html', 'راز شناوری — چگالی', ['lesson-density.js']);
+  if (has('fraction-lab.js', 'lesson-fraction-add-sub.js', 'fraction-lab.css')) add('08-lesson-fraction-add-sub.html', 'آزمایشگاه نوشیدنی رنگین', ['fraction-lab.js', 'lesson-fraction-add-sub.js'], ['fraction-lab.css']);
+  if (has('medical-model.js', 'term-popover.js', 'medical-activities.js', 'lesson-medical.js', 'medical.css')) add('09-medical-terminology.html', 'از اصطلاح تا تصویر — زبان پزشکی', ['medical-model.js', 'term-popover.js', 'medical-activities.js', 'lesson-medical.js'], ['medical.css']);
+  add('04-prompt-kit.html', 'جعبه‌ابزار کلاس زنده', ['toolkit.js', 'kit-page.js'], [], null, 'tool');
+  add('05-template.html', 'قالب کلاس زنده', ['template.js']);
+  add('07-bridge-demo.html', 'میزبان نمونهٔ کلاس زنده', ['bridge-demo.js'], [], 'bridge-demo-body.html', 'host');
+  add('worksheets/worksheet-template.html', 'کاربرگ تعاملی — حالت‌های ماده', ['worksheet-template.js'], [], null, 'worksheet');
+  const names = ['comparison', 'logic', 'conditions', 'functions', 'return', 'shipping-practice'];
+  if (has('js-section2.js', 'js-code-lab.js', 'js-code-lab.css')) names.forEach((name, i) => add('جاوا اسکریپت/' + String(i + 7).padStart(2, '0') + '-' + name + '.html', 'جاوااسکریپت — درس ' + (i + 7), ['code-interpreter.js', 'js-code-lab.js', 'js-section2.js', {code: 'var LESSON = JSSection2.make(' + (i + 7) + ');'}], ['js-code-lab.css']));
+  if (has('js-course-index.html', 'js-course-index.css')) add('جاوا اسکریپت/index.html', 'جاوااسکریپت — تصمیم‌گیری و تابع', [], ['js-course-index.css'], 'js-course-index.html', 'tool');
+  const optional = [
+    ['06-proposal.html', 'فلسفه، تعاملی می‌شود', ['proposal.js']],
+    ['riazi6/01-kashi-va-adad.html', 'کارگاه کاشی و عدد', ['riazi6/lesson01.js'], ['riazi6/riazi6.css']],
+    ['motaleat5/05-jamiat-iran.html', 'جمعیت ایران', ['motaleat5/lesson05.js']],
+    ['falsafe12/01-hast-va-chist.html', 'هست و چیست', ['falsafe12/lesson01.js']],
+  ];
+  optional.forEach(([out, title, src, styles = []]) => { if (has(...src, ...styles)) add(out, title, src, styles); });
+  ['avvalin-dastoor', 'noe-meghdarha', 'kar-ba-matn', 'amalgarha-va-moghayese', 'tasmim-giri', 'tekrar', 'arayeha', 'tavabe'].forEach((name, i) => {
+    const source = 'javascript/lesson' + String(i + 1).padStart(2, '0') + '.js';
+    if (has('console-lab.js', source)) add('javascript/' + String(i + 1).padStart(2, '0') + '-' + name + '.html', 'جاوااسکریپت از صفر — درس ' + (i + 1), ['code-interpreter.js', 'console-lab.js', source]);
+  });
+  ['farman-dast-kist', 'hayajanam-chi-miguyad', 'dadgah-tatil'].forEach((name, i) => {
+    const source = 'omid/lesson' + String(i + 1).padStart(2, '0') + '.js';
+    if (has('omid/_kit.js', 'omid/omid.css', source)) add('omid/' + String(i + 1).padStart(2, '0') + '-' + name + '.html', 'امید از همین‌جا — جلسهٔ ' + (i + 1), ['omid/_kit.js', source], ['omid/omid.css']);
+  });
+  for (const [name, title] of [['insights', 'بارش فکری پنل یادگیری'], ['plan', 'برنامهٔ اجرایی'], ['catalog', 'ویترین و داشبورد']]) {
+    const prefix = {insights: '01-learning-insights', plan: '02-execution-plan', catalog: '03-catalog-dashboard'}[name];
+    if (has('planning/' + name + '.js', 'planning/' + name + '-body.html')) add('_planning/' + prefix + '.html', title, ['planning/' + name + '.js'], [], 'planning/' + name + '-body.html', 'tool');
+  }
+  const directory = path.join(ROOT, 'content');
+  if (fs.existsSync(directory)) for (const entry of fs.readdirSync(directory, {withFileTypes: true})) {
+    if (!entry.isDirectory()) continue;
+    const base = path.join(directory, entry.name), definition = path.join(base, 'content.json');
+    if (!fs.existsSync(definition)) continue;
+    const spec = JSON.parse(read(definition));
+    if (!['lesson', 'worksheet'].includes(spec.kind) || !KZ.ID_RE.test(spec.id) || spec.id !== entry.name) throw Error(definition + ': نوع یا شناسهٔ محتوا نامعتبر است.');
+    const modules = spec.modules || [];
+    if (!Array.isArray(modules) || modules.some((name) => !['code-lab', 'console-lab', 'lab-kit', 'block-kit'].includes(name))) throw Error(definition + ': ماژول ناشناخته؛ code-lab، console-lab، lab-kit یا block-kit مجاز است.');
+    // block-kit (برنامه‌نویسی بلوکی) روی lab-kit و کپی قفل‌شدهٔ Blockly ساخته می‌شود؛ مفسر متنی لازم ندارد.
+    const blocks = modules.includes('block-kit');
+    const sharedSources = modules.some((name) => name !== 'lab-kit' && name !== 'block-kit') ? ['code-interpreter.js'] : [];
+    if (modules.includes('code-lab')) sharedSources.push('js-code-lab.js');
+    if (modules.includes('console-lab')) sharedSources.push('console-lab.js');
+    if (modules.includes('lab-kit') || blocks) sharedSources.push('lab-kit.js');
+    if (blocks) sharedSources.push('vendor/blockly/blockly.js', 'vendor/blockly/blockly-fa.js', 'block-kit.js');
+    const sharedCss = [modules.includes('code-lab') && 'js-code-lab.css', (modules.includes('lab-kit') || blocks) && 'lab-kit.css', blocks && 'block-kit.css'].filter(Boolean);
+    // sources: چند فایل منبع به همین ترتیب (مثلاً مدل، صحنه، درس)؛ source تک‌فایلی هم پذیرفته می‌شود.
+    const sources = spec.sources || [spec.source || 'lesson.js'];
+    if (!Array.isArray(sources) || !sources.length || sources.some((name) => typeof name !== 'string')) throw Error(definition + ': sources باید فهرست نام فایل باشد.');
+    jobs['content/' + spec.id + '.html'] = {kind: spec.kind, expectedId: spec.id, title: spec.title, base, sources, css: spec.css || [], sharedSources, sharedCss};
+  }
+  return jobs;
 }
 
-const files = {
-  'index.html': page('کلاس زنده — موتور طرح درس تعاملی تک‌فایلی', [], S('index-page.html')),
-  '01-workshop.html': page('یک فایل، یک کلاس زنده — کارگاه', [toolkit, S('workshop.js'), engine], undefined, S('workshop.js')),
-  '02-lesson-fractions.html': page('قنادی آقای کسری — مقایسهٔ کسرها', [S('lesson-fractions.js'), engine], undefined, S('lesson-fractions.js')),
-  '03-lesson-density.html': page('راز شناوری — چگالی', [S('lesson-density.js'), engine], undefined, S('lesson-density.js')),
-  '04-prompt-kit.html': page('جعبه‌ابزار کلاس زنده', [toolkit, S('kit-page.js')]),
-  '05-template.html': page('قالب کلاس زنده', [S('template.js'), engine], undefined, S('template.js')),
-  '07-bridge-demo.html': page('میزبان نمونهٔ کلاس زنده — پل و پنل یادگیری', [S('bridge-demo.js')], S('bridge-demo-body.html')),
-};
-// فایل‌های خصوصی (در مخزن عمومی نیستند): فقط اگر منبعشان موجود باشد ساخته می‌شوند
-if (has('proposal.js')) files['06-proposal.html'] = page('فلسفه، تعاملی می‌شود — طرح پیشنهادی', [S('proposal.js'), engine], undefined, S('proposal.js'));
-if (has('planning/insights.js', 'planning/insights-body.html')) files['_planning/01-learning-insights.html'] = page('از داده به تصمیم — بارش فکری پنل یادگیری', [S('planning/insights.js')], S('planning/insights-body.html'));
-if (has('planning/plan.js', 'planning/plan-body.html')) files['_planning/02-execution-plan.html'] = page('برنامهٔ اجرایی — پنل بینش یادگیری', [S('planning/plan.js')], S('planning/plan-body.html'));
-if (has('planning/catalog.js', 'planning/catalog-body.html')) files['_planning/03-catalog-dashboard.html'] = page('ویترین و داشبورد — برنامهٔ نسخهٔ ۲', [S('planning/catalog.js')], S('planning/catalog-body.html'));
-if (has('planning/wave1-issues.md')) { fs.mkdirSync(path.join(OUT, '_planning'), { recursive: true }); fs.copyFileSync(path.join(__dirname, 'planning/wave1-issues.md'), path.join(OUT, '_planning/wave1-issues.md')); }
-if (has('falsafe12/lesson01.js')) files['falsafe12/01-hast-va-chist.html'] = page('هست و چیست — فلسفهٔ دوازدهم، درس ۱', [S('falsafe12/lesson01.js'), engine], undefined, S('falsafe12/lesson01.js'));
-for (const [name, html] of Object.entries(files)) {
-  fs.mkdirSync(path.dirname(path.join(OUT, name)), { recursive: true });
-  fs.writeFileSync(path.join(OUT, name), html, 'utf8');
-  console.log(name, (Buffer.byteLength(html) / 1024).toFixed(1) + ' KB');
+function compileLesson(job, output) {
+  const isLesson = ['lesson', 'worksheet'].includes(job.kind);
+  const source = (name) => job.base ? read(contained(job.base, name)) : S(name);
+  const scripts = (job.sharedSources || []).map(S).concat(job.sources.map((entry) => typeof entry === 'string' ? source(entry) : entry.code));
+  let meta = '';
+  if (isLesson) {
+    const L = KZ.loadLesson(scripts);
+    if (!L || !Array.isArray(L.slides) || !L.slides.length || L.slides.filter((s) => s && s.type === 'end').length !== 1 || L.slides[L.slides.length - 1]?.type !== 'end') throw Error(output + ': محتوا باید فعالیت و دقیقاً یک پایان در آخر داشته باشد.');
+    if (job.expectedId && L.id !== job.expectedId) throw Error(output + ': شناسهٔ منبع و content.json باید یکسان باشند.');
+    if (job.kind === 'worksheet' && L.layout !== 'worksheet') throw Error(output + ': layout کاربرگ باید worksheet باشد.');
+    meta = KZ.block(KZ.metaFor(L, (S('engine.js').match(/var ENGINE_VERSION = '([^']+)'/) || [])[1]));
+    scripts.push(S('brand.js'), S('brand-qr.js'), S('engine.js'));
+    if (job.sources.includes('lesson-medical.js')) scripts.push('TermPopover.init(MedicalModel.terms);');
+  } else if (job.sources.includes('toolkit.js')) scripts.unshift(S('brand.js'), S('brand-qr.js'));
+  const font = fs.readFileSync(path.join(ROOT, 'fonts/Vazirmatn-Variable.woff2')).toString('base64');
+  const css = '@font-face{font-family:Vazirmatn;src:url(data:font/woff2;base64,' + font + ') format("woff2");font-weight:100 900;font-display:swap}\n' + S('engine.css') + '\n' + S('brand.css') + '\n' + (job.sharedCss || []).map(S).concat(job.css.map(source)).join('\n');
+  const html = '<!doctype html>\n<html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + escapeHtml(job.title) + '</title>' + meta + '<style>\n' + css + '\n</style></head><body>' + (job.body ? source(job.body) : '<div id="app"></div>') + '\n' + scripts.map((code) => '<script>\n' + inlineScript(code) + '\n</script>').join('\n') + '\n</body></html>\n';
+  // Tools and the sample host intentionally contain a frame; they are never uploadable lessons.
+  return isLesson ? validatePackage(html, output) : html;
 }
+
+function buildLessons({only = null, kind = null, outputRoot = ROOT, write = true} = {}) {
+  const plan = lessonPlan(), outputs = {};
+  if (only) for (const name of only) if (!Object.hasOwn(plan, name)) throw Error('خروجی ناشناخته: ' + name);
+  for (const [name, job] of Object.entries(plan)) if ((!only || only.includes(name)) && (!kind || job.kind === kind)) outputs[name] = compileLesson(job, name);
+  if (!Object.keys(outputs).length) throw Error('هیچ محتوایی با این انتخاب پیدا نشد.');
+  if (write) writeOutputs(outputRoot, outputs);
+  return outputs;
+}
+if (require.main === module) {
+  const only = process.argv.find((value) => value.startsWith('--only='))?.slice(7).split(',') || null;
+  const output = process.argv.find((value) => value.startsWith('--out='))?.slice(6) || ROOT;
+  for (const [name, html] of Object.entries(buildLessons({only, outputRoot: path.resolve(output)}))) console.log(name + ' · ' + Buffer.byteLength(html) + ' bytes');
+}
+module.exports = {ROOT, lessonPlan, compileLesson, buildLessons};

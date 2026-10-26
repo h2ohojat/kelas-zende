@@ -1,0 +1,95 @@
+/* ============ بلوک‌کیت — چیدمان اول موبایل روی لب‌کیت ============ */
+/* چرخش CSS و بازنشانی اجسامِ لب‌کیت برای ویرایشگر بلوکی نیست؛ بلوک‌کیت گزینهٔ «از نو» خودش را دارد. */
+.lab-app.bk .lab-rotate,.lab-app.bk [data-lab="rotate"],.lab-app.bk [data-lab="reset"]{display:none!important}
+.lab-app.bk .lab-body{grid-template-columns:minmax(0,1fr) minmax(340px,54%)}
+.lab-app.bk.lab-narrow.lab-land .lab-body{grid-template-columns:minmax(0,44%) minmax(0,56%)}
+.lab-app.bk.lab-port .lab-body{grid-template-columns:1fr;grid-template-rows:minmax(0,44%) minmax(0,1fr)}
+.lab-app.bk .lab-stage{justify-content:flex-start;background:linear-gradient(#e8f1ff,#f7faff)}
+.lab-app.bk .lab-svg{flex:1 1 auto;min-height:0;padding:4px 8px;box-sizing:border-box}
+.lab-app.bk.lab-port .lab-svg{aspect-ratio:auto;height:auto}
+/* راهنما زیر صحنه می‌نشیند و روی جدول نمی‌افتد */
+.lab-app.bk .lab-coach{position:static;flex:0 0 auto;margin:2px auto 6px;max-width:96%;width:auto;line-height:1.6}
+/* نوار مرحله و هدف */
+.bk-levelbar{display:flex;align-items:center;gap:6px;padding:6px 8px 0}
+.bk-nav{flex:0 0 44px;height:40px;border-radius:12px;border:1.5px solid var(--lab-line);background:#fff;color:var(--p-ink);font-size:1.15em;font-weight:900;touch-action:manipulation}
+.bk-nav:disabled{opacity:.35}
+.bk-title{flex:1 1 auto;min-width:0;height:40px;border-radius:12px;border:1.5px solid var(--lab-line);background:#fff;color:var(--p-ink);font-weight:800;font-size:.86em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px;touch-action:manipulation}
+.bk-goal{margin:6px 8px 0;padding:6px 10px;background:#fff8e6;border:1px solid #ffe2a6;border-radius:12px;font-size:.88em;font-weight:700;line-height:1.7;color:#4a3500}
+.lab-app.bk.lab-land.lab-narrow .bk-goal{font-size:.8em;padding:4px 8px;line-height:1.55}
+/* فهرست مرحله‌ها */
+.bk-picker{position:absolute;inset:6px;z-index:4;background:rgba(255,255,255,.98);border:1px solid var(--lab-line);border-radius:16px;box-shadow:0 8px 28px rgba(20,24,60,.18);padding:8px 10px;overflow:auto}
+.bk-picker[hidden]{display:none}
+.bk-picker-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.bk-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px}
+.bk-pick{height:52px;border-radius:14px;border:2px solid var(--lab-line);background:#fff;font-weight:900;font-size:1.1em;color:var(--p-ink);touch-action:manipulation}
+.bk-pick.done{background:#e3f7ec;border-color:#2bb673;color:#146c43}
+.bk-pick.done::after{content:' ✓'}
+.bk-pick.now{outline:3px solid var(--p);outline-offset:1px}
+/* کارت حل مرحله */
+.bk-win{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(14,44,82,.28);padding:12px}
+.bk-win[hidden]{display:none}
+.bk-win-card{background:#fff;border-radius:20px;padding:14px 16px;max-width:360px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(20,24,60,.25);animation:bk-pop .35s ease-out}
+.bk-win-icon{font-size:2.2em;line-height:1.2}
+.bk-win-text{margin:6px 0 10px;font-weight:700}
+.bk-win-stars{font-size:1.6em;letter-spacing:4px}
+/* پیام «چالش انجام شد» موتور روی نوار مرحله می‌افتاد؛ کارت حل مرحله همان ستاره‌ها را نشان می‌دهد. */
+html:has(.lab-app.bk) .toasts{display:none}
+.bk-win-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.bk-win-actions .btn{min-height:48px}
+@keyframes bk-pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+/* پنل: دکمه‌ها و میز بلوک‌ها */
+.lab-app.bk .lab-panel.bk-panel{padding:0;gap:0;overflow:hidden}
+.bk-actions{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid var(--lab-line);background:#fff}
+.bk-act{min-height:48px;min-width:48px;padding:4px 10px;border-radius:14px;border:1.5px solid var(--lab-line);background:#fff;color:var(--p-ink);font-weight:800;font-size:.9em;display:inline-flex;align-items:center;justify-content:center;gap:4px;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.bk-act .bk-ico{font-size:1.25em;line-height:1}
+.bk-act:active{transform:scale(.96)}
+.bk-act:disabled{opacity:.4}
+.bk-act.bk-run{flex:1 1 auto;background:#2bb673;border-color:#1f9a5f;color:#fff;font-size:1.05em}
+.bk-count{margin-inline-start:auto;padding:4px 10px;border-radius:999px;background:#eef3fa;font-weight:800;font-size:.85em;white-space:nowrap}
+.bk-count.over{background:#ffe3e3;color:#b42318}
+.lab-app.bk.lab-narrow .bk-lbl,.lab-app.bk.lab-port .bk-lbl{display:none}
+.lab-app.bk.lab-narrow .bk-run .bk-lbl,.lab-app.bk.lab-port .bk-run .bk-lbl{display:inline}
+.bk-ws{position:relative;flex:1 1 auto;min-height:0;direction:ltr;touch-action:none}
+.bk-ws .injectionDiv{position:absolute;inset:0}
+.lab-app.bk.bk-running .bk-ws{pointer-events:none}
+.lab-app.bk.bk-running .bk-ws .blocklyFlyout{opacity:.55}
+/* دکمهٔ «برو به این مرحله» در کارت چالش */
+.bk-go{display:inline-block;margin-inline-start:6px;padding:2px 10px;min-height:36px;border-radius:10px;border:1.5px solid var(--p);background:var(--p-soft);color:var(--p-ink);font-weight:800;font-size:.85em}
+/* دعوت پای‌آموز: نوار کوچک در فهرست مرحله‌ها و کارت حل، و پنل کانال */
+.bk-promo{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border-radius:14px;background:linear-gradient(135deg,#eef4ff,#f6edff);border:1px solid #d9d2f5;font-size:.86em;font-weight:700;color:#2d2466;text-align:start}
+.bk-promo[hidden]{display:none}
+.bk-promo-text{flex:1 1 180px;line-height:1.6}
+.bk-promo-btn{min-height:44px;padding:4px 12px;border-radius:12px;border:0;background:linear-gradient(135deg,#4f9dff,#9b6cf0);color:#fff;font-weight:800;font-size:.95em;white-space:nowrap;touch-action:manipulation}
+.bk-brand{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(14,24,60,.45)}
+.bk-brand[hidden]{display:none}
+.bk-brand-card{position:relative;background:#fff;border-radius:22px;max-width:460px;width:100%;max-height:100%;overflow:auto;padding:16px;box-shadow:0 16px 48px rgba(20,24,60,.3);animation:bk-pop .3s ease-out}
+.bk-brand-close{position:absolute;top:8px;left:8px}
+.bk-brand-kick{display:inline-block;padding:2px 10px;border-radius:999px;background:#f1ecff;color:#5b3fc4;font-weight:800;font-size:.82em}
+.bk-brand-card h3{margin:8px 0 4px;font-size:1.15em;color:#1b3f7a}
+.bk-brand-card p{margin:0 0 8px;font-size:.92em}
+.bk-brand-perks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.bk-brand-perks span{padding:3px 10px;border-radius:999px;background:#eef4ff;font-size:.82em;font-weight:700}
+.bk-brand-body{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.bk-qr{flex:0 0 132px;width:132px;height:132px;padding:4px;border-radius:14px;border:2px solid #d9d2f5;background:#fff;box-sizing:border-box}
+.bk-brand-lines{flex:1 1 200px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.bk-brand-hint{color:var(--muted);font-weight:700}
+.bk-brand-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.bk-brand-row b{flex:1 1 100%;font-size:.85em}
+.bk-brand-url{flex:1 1 140px;min-width:0;min-height:44px;padding:4px 10px;border-radius:12px;border:1.5px solid var(--lab-line);font:inherit;font-size:.9em;direction:ltr;text-align:left;background:#f7f9fc}
+.bk-brand-link{display:flex;flex-direction:column;padding:8px 12px;min-height:44px;border-radius:14px;background:linear-gradient(135deg,#4f9dff,#9b6cf0);color:#fff;text-decoration:none}
+.bk-brand-link.bk-brand-site{background:#eef4ff;color:#1b3f7a}
+.bk-brand-link span{font-size:.85em;direction:ltr;text-align:right}
+.bk-brand-status{min-height:1.6em;margin:0;font-size:.85em;font-weight:700;color:#146c43}
+.bk-brand-back{width:100%;min-height:48px;margin-top:10px}
+/* قلم فارسی برای Blockly */
+.lab-app.bk .blocklyText,.blocklyWidgetDiv,.blocklyDropDownDiv,.blocklyTooltipDiv{font-family:Vazirmatn,Tahoma,sans-serif!important}
+/* گوشی افقی کوتاه: سربرگ و نوار جمع‌وجورتر */
+@media (max-height:500px){
+  .lab-app.bk{--lab-top:46px}
+  .lab-app.bk .lab-topbtn{min-height:40px}
+  .bk-levelbar{padding-top:4px}
+  .bk-nav,.bk-title{height:36px}
+  .bk-act{min-height:44px;min-width:44px}
+  .lab-app.bk .bk-act:not(.bk-run) .bk-lbl{display:none}
+}
+@media (prefers-reduced-motion:reduce){.bk-win-card{animation:none}}

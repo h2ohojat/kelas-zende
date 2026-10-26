@@ -1,0 +1,22 @@
+/* صحنهٔ ربات؛ چیدمان و دکمه‌ها از بلوک‌کیت می‌آیند. */
+.rb-cell{fill:#fff;stroke:#d5e1f2;stroke-width:2}
+.rb-cell-b{fill:#f2f7ff}
+.rb-wall{fill:#f3d9c4;stroke:#c98b5e;stroke-width:2}
+.rb-emoji{font-size:54px}
+.rb-home{fill:none;stroke:#2bb673;stroke-width:5;stroke-dasharray:10 8}
+.rb-ghost-shape{fill:none;stroke:#8aa6cc;stroke-width:6;stroke-dasharray:4 14;stroke-linecap:round;opacity:.8}
+.rb-star{transition:opacity .3s,transform .3s;transform-box:fill-box;transform-origin:center}
+.rb-star.got{opacity:.25;transform:scale(1.35)}
+.rb-line{stroke:#ff5d7a;stroke-width:12;stroke-linecap:round;opacity:.85}
+.rb-robot{transition:transform .42s ease-in-out}
+.rb-robot.rb-still{transition:none}
+.rb-shell{fill:#4C97FF;stroke:#1b3f7a;stroke-width:4}
+.rb-eye{fill:#fff}
+.rb-mouth{fill:#fff;opacity:.9}
+.rb-nose{fill:#FFAB19;stroke:#b36b00;stroke-width:3;stroke-linejoin:round}
+.rb-robot.rb-bump .rb-body{animation:rb-shake .45s ease-in-out 2}
+.rb-robot.rb-happy .rb-body{animation:rb-hop .5s ease-in-out 2}
+.rb-robot.rb-bump .rb-shell{fill:#ff6b6b}
+@keyframes rb-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@keyframes rb-hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@media (prefers-reduced-motion:reduce){.rb-robot{transition-duration:.12s!important}.rb-robot .rb-body{animation:none!important}}

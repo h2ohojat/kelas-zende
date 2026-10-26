@@ -5,7 +5,7 @@
   var FA = '۰۱۲۳۴۵۶۷۸۹';
   var fa = function (x) { return String(x).replace(/\d/g, function (d) { return FA[d]; }); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  var LESSONS = [['02-lesson-fractions.html', '🧁 قنادی آقای کسری (کسرها)'], ['03-lesson-density.html', '🚢 راز شناوری (چگالی)'], ['05-template.html', '🧊 قالب: جامد، مایع، گاز']];
+  var LESSONS = [['02-lesson-fractions.html', '🧁 قنادی آقای کسری (کسرها)'], ['08-lesson-fraction-add-sub.html', '🧃 جمع و تفریق کسرها (پنجم)'], ['03-lesson-density.html', '🚢 راز شناوری (چگالی)'], ['05-template.html', '🧊 قالب: جامد، مایع، گاز']];
   var q = new URLSearchParams(location.search);
   var src = q.get('lesson');
   if (!LESSONS.some(function (l) { return l[0] === src; })) src = LESSONS[0][0];   // فقط فایل‌های مجاز
@@ -38,7 +38,7 @@
     if (!m || m.ns !== 'kelas' || m.v !== 1) return;       // فقط قالب پل
     if (m.kind === 'hello') {
       meta = m.lesson;
-      $('#conn').innerHTML = '🟢 متصل · موتور <b>' + esc(m.engine) + '</b> · ' + (meta.contentMode === 'textbook-licensed' ? 'مطابق کتاب' : 'سرفصل‌محور') + ' · ' + fa(meta.items.length) + ' اسلاید · ذخیرهٔ مرورگر در قاب: ' + (m.storage ? 'دارد' : '<b>ندارد</b>');
+      $('#conn').innerHTML = '🟢 متصل · موتور <b>' + esc(m.engine) + '</b> · ' + fa(meta.items.length) + ' اسلاید · ذخیرهٔ مرورگر در قاب: ' + (m.storage ? 'دارد' : '<b>ندارد</b>');
       meta.items.forEach(function (it) { itemRow(it.id); });
       var saved = null;
       if (persist) { try { saved = JSON.parse(localStorage.getItem(STATE_KEY)); } catch (x) {} }
