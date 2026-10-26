@@ -16,9 +16,9 @@ const engine = fs.readFileSync(path.join(DIR, 'engine.js'), 'utf8');
 const built = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 // A lesson written for 1.1 (no stable ids, no contentMode) with today's engine, as a host would rebuild it.
 const legacy = built('03-lesson-density.html')
-  .replace(/<script type="application\/json" id="kz-meta">[\s\S]*?<\/script>\n/, '')
+  .replace(/<script type="application\/json" id="kz-meta">[\s\S]*?<\/script>\n?/, '')
   .replace(/<script>\n\/\* =+\n   محتوای درس[\s\S]*?<\/script>/, () => '<script>\n' + fs.readFileSync(path.join(DIR, 'test/legacy-density-1.1.js'), 'utf8') + '\n</script>');
-if (legacy.includes("id: 'drop-lab'")) throw new Error('legacy fixture was not swapped in');
+if (!legacy.includes('id="app"') || !legacy.includes('var LESSON') || legacy.includes("id: 'drop-lab'")) throw new Error('legacy fixture was not swapped in');
 
 const CASES = [
   { name: 'density', html: built('03-lesson-density.html'), objectives: 3 },
