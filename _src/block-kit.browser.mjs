@@ -22,7 +22,7 @@ try {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
  const f=page.frameLocator('iframe'),ws=f.getByRole('region',{name:'Blocks workspace.',exact:true});
  const palette=f.getByRole('listbox',{name:'blocks',exact:true});
- const move=()=>palette.getByText(/یک خانه جلو برو/).click();
+ const move=()=>palette.getByText('یک خانه جلو برو',{exact:false}).click();
  const run=async()=>{await f.locator('[data-lab="run"]').click();await f.locator('[data-bk="win-next"]').waitFor({state:'visible'})};
  const pick=async(id)=>{const stay=f.locator('[data-bk="win-stay"]');if(await stay.isVisible())await stay.click();await f.locator('[data-bk="levels"]').click();await f.locator('[data-bk-pick="'+id+'"]').click()};
  await page.goto('http://127.0.0.1:'+server.address().port);
@@ -31,7 +31,7 @@ try {
  await move();await move();await run();await page.waitForFunction(()=>window.latest?.stars===3&&window.latest.res[1]?.done);
  await page.reload();await f.locator('[data-lab="run"]').waitFor({state:'visible'});assert.match(await f.locator('[data-bk="levels"]').innerText(),/✅/);assert.match(await f.locator('[data-lab="count"]').innerText(),/۲/);
  await run();await page.waitForFunction(()=>window.latest?.stars===3);assert.equal((await page.evaluate(()=>window.latest)).stars,3,'no duplicate stars after resume');
- await f.locator('[data-bk="win-next"]').click();await move();await move();await move();await ws.getByText(/یک خانه جلو برو/).first().click();await palette.getByText(/به راست بچرخ/).click();await run();
+ await f.locator('[data-bk="win-next"]').click();await move();await move();await move();await ws.getByText('یک خانه جلو برو',{exact:false}).first().click();await palette.getByText('به راست بچرخ',{exact:false}).click();await run();
  await page.waitForFunction(()=>window.latest?.stars===6);assert.match(await f.locator('[data-lab="count"]').innerText(),/۴/);
  await pick('loop-line');await f.getByRole('listbox',{name:'blocks',exact:true}).getByText('بار تکرار کن',{exact:false}).click();await ws.getByRole('button',{name:'dropdown: ۴',exact:true}).click();await f.getByRole('option',{name:'۶',exact:true}).click();
  await page.setViewportSize({width:360,height:800});await f.locator('.bk-port').waitFor({state:'visible'});await ws.getByText('بار تکرار کن',{exact:false}).click();await move();await run();await page.waitForFunction(()=>window.latest?.stars===9);
