@@ -36,7 +36,10 @@ try {
  assert.match(await f.locator('[data-flow-score]').innerText(),/۰.*۰/,'stop restores pre-event score');
  await click('سرعت: آهسته');await click('سرعت: عادی');await click('حرکت راست');await ready();
  await page.waitForFunction(()=>window.latest?.res?.[0]?.state?.flow?.['score-step']?.vars?.score===1);
- await f.locator('[data-event-edit="up"]').click();await page.reload();await f.locator('[data-lab="run"]').waitFor({state:'visible'});
+ await f.locator('[data-event-edit="up"]').click();
+ // Reload only after the host has received and persisted this change, not an older score packet.
+ await page.waitForFunction(()=>window.latest?.res?.[0]?.state?.flow?.['score-step']?.editing==='up');
+ await page.reload();await f.locator('[data-lab="run"]').waitFor({state:'visible'});
  assert.match(await f.locator('[data-flow-score]').innerText(),/۱.*۱/);assert.equal(await f.locator('[data-event-edit="up"]').getAttribute('aria-pressed'),'true');
  await click('حرکت چپ');await ready();await click('حرکت راست');await ready();
  assert.match(await f.locator('[data-flow-score]').innerText(),/۱.*۱/,'star revisited without another point');
