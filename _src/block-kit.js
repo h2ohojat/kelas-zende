@@ -9,7 +9,7 @@
    چرخش CSS لب‌کیت برای ویرایشگر کشیدنی امن نیست؛ نمای عمودی چیدمان خودش را دارد. */
 var BlockKit = (function () {
   'use strict';
-  var VERSION = '0.1.1', K = LabKit, fa = LabKit.fa;
+  var VERSION = '0.1.2', K = LabKit, fa = LabKit.fa;
   var SPEEDS = [{id: 'slow', icon: '🐢', label: 'آهسته', ms: 800}, {id: 'normal', icon: '🚶', label: 'عادی', ms: 460}, {id: 'fast', icon: '🐇', label: 'تند', ms: 170}];
   var defined = {}, themed = false;
 
@@ -147,6 +147,49 @@ var BlockKit = (function () {
       open: function (where) { if (!panel) build(); status.textContent = ''; panel.hidden = false; lab.emit('brand', {action: 'show', where: where}); },
       close: close
     };
+  }
+
+  /* نشانه‌های ضروری صحنه (هدف، مانع، پاداش) شکل برداری‌اند، نه ایموجیِ داخل <text>:
+     روی سیستم‌هایی مثل Windows 7 / Chrome 109 قلم ایموجی نیست و نشانه دیده نمی‌شود.
+     mark(kind, x, y, size, label) گروهی با مرکز (x, y) و ضلع size در مختصات همان SVG برمی‌گرداند. */
+  var MARK_LABEL = {star: 'ستاره', wall: 'دیوار', goal: 'هدف'};
+  var MARKS = {
+    star: function (g, s) {
+      var pts = [];
+      for (var i = 0; i < 10; i++) {
+        var r = (i % 2 ? 0.21 : 0.48) * s, a = -Math.PI / 2 + i * Math.PI / 5;
+        pts.push(r0(r * Math.cos(a)) + ',' + r0(r * Math.sin(a)));
+      }
+      g.appendChild(K.svg('polygon', {points: pts.join(' '), fill: '#FFC83D', stroke: '#B7791F', 'stroke-width': r0(s * 0.06), 'stroke-linejoin': 'round'}));
+    },
+    wall: function (g, s) {
+      var h = s / 2, row = s / 3, line = r0(s * 0.045), d = [];
+      g.appendChild(K.svg('rect', {x: -h, y: -h, width: s, height: s, rx: r0(s * 0.08), fill: '#C8693A', stroke: '#7A3B1E', 'stroke-width': line}));
+      for (var k = 1; k < 3; k++) d.push('M' + (-h) + ' ' + r0(-h + k * row) + 'H' + h);
+      for (var j = 0; j < 3; j++) { // درزهای عمودی یک‌درمیان جابه‌جا، مثل آجرچینی
+        var y0 = r0(-h + j * row), y1 = r0(-h + (j + 1) * row), xs = j % 2 ? [0] : [-s / 4, s / 4];
+        xs.forEach(function (x) { d.push('M' + r0(x) + ' ' + y0 + 'V' + y1); });
+      }
+      g.appendChild(K.svg('path', {d: d.join(''), fill: 'none', stroke: '#F3D9C4', 'stroke-width': line, 'stroke-linecap': 'round'}));
+    },
+    goal: function (g, s) {
+      g.appendChild(K.svg('rect', {x: r0(-s * 0.32), y: r0(-s * 0.46), width: r0(s * 0.07), height: r0(s * 0.92), rx: r0(s * 0.03), fill: '#5B4636'}));
+      g.appendChild(K.svg('path', {d: 'M' + r0(-s * 0.25) + ' ' + r0(-s * 0.44) + 'L' + r0(s * 0.4) + ' ' + r0(-s * 0.25) + 'L' + r0(-s * 0.25) + ' ' + r0(-s * 0.06) + 'Z',
+        fill: '#2BB673', stroke: '#146C43', 'stroke-width': r0(s * 0.04), 'stroke-linejoin': 'round'}));
+    }
+  };
+  function r0(v) { return Math.round(v * 100) / 100; }
+  function mark(kind, x, y, size, label) {
+    if (!MARKS[kind]) throw Error('نشانهٔ ناشناخته: ' + kind);
+    // جابه‌جایی روی گروه درونی است تا CSS درس (مثلاً scale هنگام جمع‌شدن) آن را بازنویسی نکند.
+    var inner = K.svg('g', {transform: 'translate(' + r0(x) + ' ' + r0(y) + ')'});
+    MARKS[kind](inner, size);
+    return K.svg('g', {class: 'bk-mark bk-mark-' + kind, 'data-mark': kind, role: 'img', 'aria-label': label || MARK_LABEL[kind]}, inner);
+  }
+  /* برای آزمون و بازبینی: <text>هایی که فقط با قلم ایموجی سیستم دیده می‌شوند. */
+  var PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
+  function emojiText(root) {
+    return Array.prototype.filter.call(root.getElementsByTagName('text'), function (t) { return PICTOGRAPHIC.test(t.textContent || ''); });
   }
 
   function app(def) {
@@ -552,6 +595,6 @@ var BlockKit = (function () {
     });
   }
 
-  return {VERSION: VERSION, app: app, slides: slides, program: program, toolbox: toolbox, compile: compile, selection: selection};
+  return {VERSION: VERSION, app: app, slides: slides, program: program, toolbox: toolbox, compile: compile, selection: selection, mark: mark, emojiText: emojiText};
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = BlockKit;
