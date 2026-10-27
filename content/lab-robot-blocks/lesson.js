@@ -103,7 +103,7 @@ var RLAB = (function () {
 
 var LESSON = {
   id: 'lab-robot-blocks',
-  version: 2,
+  version: 3,
   contentMode: 'syllabus',
   layout: 'worksheet',            // لب‌کیت/بلوک‌کیت: برنامهٔ تمام‌صفحه و چالش‌ها در کشو؛ noStart ممنوع است
   durationMinutes: 60,

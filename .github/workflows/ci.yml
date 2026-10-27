@@ -38,3 +38,4 @@ jobs:
           npx playwright install --with-deps chromium
           node _src/e2e.mjs
           node _src/block-kit.browser.mjs
+          node _src/block-flow.browser.mjs

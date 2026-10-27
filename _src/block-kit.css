@@ -93,3 +93,29 @@ html:has(.lab-app.bk) .toasts{display:none}
   .lab-app.bk .bk-act:not(.bk-run) .bk-lbl{display:none}
 }
 @media (prefers-reduced-motion:reduce){.bk-win-card{animation:none}}
+
+/* Optional event handlers share the existing editor, selection and responsive layout. */
+.bk-event-editors{display:flex;gap:4px;flex:0 0 auto;padding:3px 6px;background:var(--p-soft)}
+.bk-event{min-height:44px;min-width:44px;flex:1;border:1px solid var(--lab-line);border-radius:10px;background:#fff;color:var(--p-ink);font:inherit;font-size:.8em;font-weight:800;touch-action:manipulation}
+.bk-event[hidden]{display:none}.bk-event[aria-pressed="true"]{outline:2px solid var(--p);outline-offset:-3px;background:var(--p-soft)}
+.bk-event:disabled{opacity:.45}.bk-inputs{display:flex;gap:6px;padding:4px 8px;flex:0 0 auto;justify-content:center}
+.bk-inputs .bk-event{flex:0 1 64px;font-size:1.2em;min-height:44px}
+.bk-flow .bk-goal{font-size:.8em;line-height:1.5}.bk-flow .bk-title{height:36px}.bk-flow .bk-nav{height:36px}
+
+/* Event controls need room alongside the scene and editor on a short phone viewport. */
+.lab-app.bk-flow.lab-port .lab-body{grid-template-rows:minmax(0,40%) minmax(0,1fr)}
+.lab-app.bk-flow.lab-port .lab-stage{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:42px 22px minmax(0,1fr) 54px}
+.lab-app.bk-flow.lab-port .bk-levelbar{grid-column:1/-1;grid-row:1}
+.lab-app.bk-flow.lab-port .bk-goal{grid-column:1;grid-row:2/4;align-self:start}
+.lab-app.bk-flow.lab-port .lab-svg{grid-column:2;grid-row:3;height:100%;width:100%}
+.lab-app.bk-flow.lab-port .lab-coach{grid-column:1;grid-row:4;align-self:center}
+.lab-app.bk-flow.lab-port .bk-inputs{grid-column:2;grid-row:4;gap:3px;padding:4px}
+.lab-app.bk-flow.lab-port .bk-inputs .bk-event{min-width:44px}
+.lab-app.bk-flow.lab-port .bk-goal{font-size:.8em;line-height:1.45;padding:4px 8px}
+.lab-app.bk-flow.lab-port .lab-coach{font-size:.72em;line-height:1.35;margin:2px auto 3px;padding:4px 10px}
+.lab-app.bk-flow.lab-port .bk-run .bk-lbl{display:none}
+.lab-app.bk-flow.lab-port .bk-actions{gap:4px;padding:4px}
+.lab-app.bk-flow.lab-port .bk-act{min-width:44px;min-height:44px;padding:4px}
+
+/* Blockly flyout z-index stays inside the editor, below LabKit sheets and menus. */
+.lab-app.bk .bk-ws{isolation:isolate}

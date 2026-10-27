@@ -9,7 +9,7 @@
    چرخش CSS لب‌کیت برای ویرایشگر کشیدنی امن نیست؛ نمای عمودی چیدمان خودش را دارد. */
 var BlockKit = (function () {
   'use strict';
-  var VERSION = '0.1.1', K = LabKit, fa = LabKit.fa;
+  var VERSION = '0.1.2', K = LabKit, fa = LabKit.fa;
   var SPEEDS = [{id: 'slow', icon: '🐢', label: 'آهسته', ms: 800}, {id: 'normal', icon: '🚶', label: 'عادی', ms: 460}, {id: 'fast', icon: '🐇', label: 'تند', ms: 170}];
   var defined = {}, themed = false;
 
@@ -52,6 +52,7 @@ var BlockKit = (function () {
   }
 
   function toolbox(def, lv) {
+    if (def.flow) return BlockFlow.toolbox(def, lv);
     var typeOf = {};
     Object.keys(def.ops).forEach(function (t) { typeOf[def.ops[t]] = t; });
     return {kind: 'flyoutToolbox', contents: lv.palette.map(function (p) {
@@ -174,7 +175,10 @@ var BlockKit = (function () {
 
   function mount(lab, def) {
     var st = lab.state, api = lab.api, h = api.h, levels = def.levels, byId = {};
-    var maxOps = def.maxOps || 400;
+    var maxOps = def.maxOps || 400, flow = !!def.flow, flowVars = null, interpreter = null, flowBefore = null;
+    var editButtons = [], inputButtons = [], editEvent = 'start';
+    if (flow && typeof BlockFlow === 'undefined') throw Error('ماژول block-flow لازم است.');
+    if (flow) st.flow = st.flow && typeof st.flow === 'object' && !Array.isArray(st.flow) ? st.flow : {};
     levels.forEach(function (l, i) { byId[l.id] = l; l.index = i; });
     st.progs = st.progs && typeof st.progs === 'object' && !Array.isArray(st.progs) ? st.progs : {};
     st.solved = Array.isArray(st.solved) ? st.solved.filter(function (id) { return byId[id]; }) : [];
@@ -255,6 +259,7 @@ var BlockKit = (function () {
 
     // ---------- صحنهٔ درس ----------
     var scene = def.scene(lab, {fa: fa});
+    if (flow) lab.root.classList.add('bk-flow');
 
     // ---------- پنل: دکمه‌ها و میز بلوک‌ها ----------
     var panel = lab.panel;
@@ -278,10 +283,12 @@ var BlockKit = (function () {
       var i = SPEEDS.findIndex(function (s) { return s.id === st.speed; });
       st.speed = SPEEDS[(i + 1) % SPEEDS.length].id; syncSpeed(); lab.save();
     });
+    var fitBtn = flow ? act('fit', '⊡', 'نمایش کل برنامه', function () { if (ws && !running) ws.zoomToFit(); }) : null;
     var countChip = h('span', {class: 'bk-count', 'data-lab': 'count', 'aria-live': 'polite'});
     actions.appendChild(countChip);
     var wsBox = h('div', {class: 'bk-ws', 'data-lab': 'workspace'});
     panel.appendChild(wsBox);
+    if (flow) flowControls();
     function syncSpeed() {
       var s = SPEEDS.filter(function (x) { return x.id === st.speed; })[0];
       speedBtn.querySelector('.bk-ico').textContent = s.icon;
@@ -295,20 +302,118 @@ var BlockKit = (function () {
     var clearItem = h('button', {type: 'button', role: 'menuitem', class: 'lab-menu-item', 'data-lab': 'clear', text: '🧹 از نو: برنامهٔ این مرحله', onclick: function () {
       if (!armed) { clearItem.textContent = 'مطمئنی؟ دوباره بزن'; clearItem.classList.add('armed'); armed = setTimeout(disarm, 3500); return; }
       disarm(); if (menu) menu.hidden = true;
-      stop(''); delete st.progs[level.id]; load(start(level)); scene.home(); lab.coach('برنامهٔ این مرحله از نو شروع شد.'); lab.save();
+      stop(''); if (flow) { delete st.flow[level.id]; flowVars = BlockFlow.variables(def); last = null; } else delete st.progs[level.id]; load(start(level)); scene.home(); lab.coach('برنامهٔ این مرحله از نو شروع شد.'); lab.save();
     }});
     function disarm() { if (armed) clearTimeout(armed); armed = 0; clearItem.textContent = '🧹 از نو: برنامهٔ این مرحله'; clearItem.classList.remove('armed'); }
     if (menu) menu.insertBefore(clearItem, menu.firstChild);
     if (menu && brand) menu.insertBefore(h('button', {type: 'button', role: 'menuitem', class: 'lab-menu-item', 'data-lab': 'brand',
       text: '📣 کانال پای‌آموز و درس‌های بیشتر', onclick: function () { menu.hidden = true; brand.open('menu'); }}), menu.firstChild);
 
-    function start(lv) { return program(def, lv.program || []); }
-    function saved(lv) { var p = st.progs[lv.id]; return p && typeof p === 'object' ? p : start(lv); }
+    function eventLabel(json) {
+      var copy = JSON.parse(JSON.stringify(json));
+      if (flow && copy.blocks && copy.blocks.blocks) copy.blocks.blocks.forEach(function (b) {
+        if (b.type === def.hat) { b.fields = b.fields || {}; b.fields.EVENT = def.flow.events.find(function (e) { return e.id === editEvent; }).label; }
+      });
+      return copy;
+    }
+    function start(lv) { return flow ? eventLabel(BlockFlow.program(def, (lv.program || {})[editEvent] || [])) : program(def, lv.program || []); }
+    function saved(lv) {
+      var p = flow ? flowState().programs[editEvent] : st.progs[lv.id];
+      return p && typeof p === 'object' && (!flow || BlockFlow.workspace(def, p)) ? p : start(lv);
+    }
+    function copy(v) { return JSON.parse(JSON.stringify(v)); }
+    function flowState() {
+      var f = st.flow[level.id];
+      if (!f || typeof f !== 'object' || Array.isArray(f) || f.schema !== 1) f = st.flow[level.id] = {schema: 1, programs: {}, started: false};
+      if (!f.programs || typeof f.programs !== 'object' || Array.isArray(f.programs)) f.programs = {};
+      return f;
+    }
+    function allowedEvents() { return def.flow.events.filter(function (e) { return e.id === 'start' || (level.inputs || []).indexOf(e.id) >= 0; }); }
+    function flowControls() {
+      var editors = h('div', {class: 'bk-event-editors', role: 'group', 'aria-label': 'برنامهٔ کدام رویداد؟'});
+      panel.insertBefore(editors, wsBox);
+      var inputs = h('div', {class: 'bk-inputs', role: 'group', 'aria-label': 'کنترل بازی'});
+      stage.appendChild(inputs);
+      def.flow.events.forEach(function (e) {
+        var edit = h('button', {type: 'button', class: 'bk-event', 'data-event-edit': e.id, text: e.label,
+          onclick: function () { if (running || editEvent === e.id) return; save(); editEvent = e.id; flowState().editing = e.id; load(saved(level)); sync(); lab.save(); }});
+        editors.appendChild(edit); editButtons.push({event: e.id, el: edit});
+        if (e.id !== 'start') {
+          var input = h('button', {type: 'button', class: 'bk-event bk-input', 'data-event-input': e.id, text: e.icon || e.label, 'aria-label': 'حرکت ' + e.label,
+            onclick: function () { dispatch(e.id); }});
+          inputs.appendChild(input); inputButtons.push({event: e.id, el: input});
+        }
+      });
+      lab.on(lab.root, 'keydown', function (e) {
+        var keys = {ArrowRight: 'right', ArrowLeft: 'left', ArrowUp: 'up', ArrowDown: 'down'};
+        if (!e.repeat && keys[e.key] && e.target.closest && e.target.closest('.bk-inputs')) { e.preventDefault(); dispatch(keys[e.key]); }
+      });
+      runBtn.querySelector('.bk-lbl').textContent = 'شروع بازی'; runBtn.setAttribute('aria-label', 'شروع بازی');
+    }
+    function flowSave(json) {
+      var f = flowState(); f.programs[editEvent] = json; f.editing = editEvent;
+      f.world = copy(flowBefore ? flowBefore.world : scene.snapshot());
+      f.vars = copy(flowBefore ? flowBefore.vars : flowVars); f.started = flowBefore ? flowBefore.started : !!f.started;
+      f.last = last;
+    }
+    function flowHome() {
+      var f = flowState(), allowed = allowedEvents();
+      editEvent = allowed.some(function (e) { return e.id === f.editing; }) ? f.editing : level.editEvent || 'start';
+      flowVars = BlockFlow.variables(def, f.vars);
+      if (!flowVars || !f.world || !scene.restore(copy(f.world))) {
+        flowVars = BlockFlow.variables(def); f.started = false; scene.home();
+      }
+      last = f.last && f.last.level === level.id && typeof f.last.ok === 'boolean' ? f.last : null;
+      if (scene.refresh) scene.refresh(flowVars);
+    }
+    function dispatch(event) {
+      if (!ws || running || !lab.alive() || !allowedEvents().some(function (e) { return e.id === event; })) return;
+      var f = flowState();
+      if (event !== 'start' && (!f.started || (scene.terminal && scene.terminal()))) return;
+      save();
+      var programs = {}, total = 0;
+      try {
+        allowedEvents().forEach(function (e) {
+          var scratch = new Blockly.Workspace();
+          try {
+            var json = f.programs[e.id] || BlockFlow.program(def, (level.program || {})[e.id] || []);
+            if (!BlockFlow.workspace(def, json)) throw Error('برنامهٔ ذخیره‌شده معتبر نیست؛ آن رویداد را از نو بساز.');
+            Blockly.serialization.workspaces.load(json, scratch);
+            programs[e.id] = BlockFlow.compile(def, scratch); total += programs[e.id].blocks;
+          } finally { scratch.dispose(); }
+        });
+        if (total > 120) throw Error('برنامه بزرگ شد؛ بلوک‌های اضافه را کم کن.');
+      } catch (e) { lab.coach(e.message); return; }
+      flowBefore = {world: copy(scene.snapshot()), vars: copy(flowVars), started: !!f.started};
+      if (event === 'start') { scene.home(); flowVars = BlockFlow.variables(def); f.started = true; }
+      if (scene.beforeEvent) scene.beforeEvent(event);
+      var prog = {blocks: total, loops: 0};
+      interpreter = BlockFlow.runner(programs[event].nodes, {event: event, vars: flowVars,
+        act: function (op, vars, id) { scene.act(op, vars, id); }, test: function (condition, vars, id) { return scene.test(condition, vars, id); }});
+      running = true; win.hidden = true; lab.coach(''); sync();
+      var ms = SPEEDS.find(function (x) { return x.id === st.speed; }).ms;
+      (function tick() {
+        timer = 0;
+        if (!running || !lab.alive()) return;
+        try {
+          var op = interpreter.next();
+          if (op) {
+            if (ws.getBlockById(op.id)) ws.highlightBlock(op.id);
+            if (scene.refresh) scene.refresh(flowVars);
+            timer = setTimeout(tick, ms); return;
+          }
+          flowBefore = null; interpreter = null;
+          if (scene.afterEvent) scene.afterEvent(event, flowVars);
+          if (scene.refresh) scene.refresh(flowVars);
+          finish(prog);
+        } catch (e) { stop(e.message); }
+      })();
+    }
     function save() {
       if (!ws || loading) return;
       var json = Blockly.serialization.workspaces.save(ws);
       if (JSON.stringify(json).length > 20000) return; // سقف هر مرحله؛ کل state زیر ۲۵۶ کیلوبایت می‌ماند
-      st.progs[level.id] = json;
+      if (flow) flowSave(json); else st.progs[level.id] = json;
       lab.save();
     }
     function load(json) {
@@ -316,7 +421,7 @@ var BlockKit = (function () {
       loading = true;
       try {
         ws.clear();
-        try { Blockly.serialization.workspaces.load(json, ws); } catch (e) { ws.clear(); Blockly.serialization.workspaces.load(start(level), ws); }
+        try { if (flow && !BlockFlow.workspace(def, json)) throw Error('workspace'); Blockly.serialization.workspaces.load(flow ? eventLabel(json) : json, ws); } catch (e) { ws.clear(); Blockly.serialization.workspaces.load(start(level), ws); }
         if (!ws.getBlocksByType(def.hat, false).length) { ws.clear(); Blockly.serialization.workspaces.load(start(level), ws); }
       } finally { loading = false; }
       ws.clearUndo();
@@ -343,10 +448,16 @@ var BlockKit = (function () {
       countChip.setAttribute('aria-label', 'تعداد بلوک‌ها: ' + fa(n) + (max ? '، سقف ' + fa(max) : ''));
       var s = selected();
       delBtn.disabled = running || !s || s.type === def.hat;
+      if (fitBtn) fitBtn.disabled = running;
       undoBtn.disabled = running;
       runBtn.disabled = running;
       stopBtn.disabled = !running;
       lab.root.classList.toggle('bk-running', running);
+      if (flow) {
+        var ids = allowedEvents().map(function (e) { return e.id; });
+        editButtons.forEach(function (b) { b.el.hidden = ids.indexOf(b.event) < 0; b.el.disabled = running; b.el.setAttribute('aria-pressed', String(b.event === editEvent)); });
+        inputButtons.forEach(function (b) { b.el.hidden = ids.indexOf(b.event) < 0; b.el.disabled = running || !flowState().started || !!(scene.terminal && scene.terminal()); });
+      }
     }
 
     /* ضربه روی بلوکِ جعبه: بعد از بلوکِ انتخاب‌شده (یا داخل تکرارِ خالیِ انتخاب‌شده، یا ته برنامه) اضافه می‌شود و خودش انتخاب می‌شود. */
@@ -357,7 +468,8 @@ var BlockKit = (function () {
       Blockly.Events.setGroup(true);
       try {
         b = Blockly.serialization.blocks.append(json, ws);
-        if (sel && sel.type === def.loop.type && !sel.getInputTargetBlock(def.loop.input)) sel.getInput(def.loop.input).connection.connect(b.previousConnection);
+        var input = sel && (flow ? def.flow.rules[sel.type] && def.flow.rules[sel.type].input : sel.type === def.loop.type && def.loop.input);
+        if (input && !sel.getInputTargetBlock(input)) sel.getInput(input).connection.connect(b.previousConnection);
         else if (sel && sel.nextConnection) sel.nextConnection.connect(b.previousConnection);
         else {
           var t = hat();
@@ -410,6 +522,8 @@ var BlockKit = (function () {
       ws.addChangeListener(function (e) {
         if (e.isUiEvent) { if (e.type === Blockly.Events.SELECTED) { choice.remember(e.newElementId); sync(); } return; }
         if (e.type === Blockly.Events.FINISHED_LOADING) return;
+        if (loading) return;
+        if (flow && !running && e.recordUndo !== false) { flowState().started = false; lab.coach('برنامه تغییر کرد؛ برای اجرای تازه، شروع بازی را بزن.'); }
         save(); sync();
       });
       var fly = ws.getFlyout && ws.getFlyout();
@@ -432,9 +546,10 @@ var BlockKit = (function () {
     // پیش از اندازه‌گیری متن بلوک‌ها قلم وزیرمتن باید آماده باشد.
     if (document.fonts && document.fonts.load) document.fonts.load('700 13px Vazirmatn').then(inject, inject);
     else setTimeout(inject, 0);
-    lab.on(document, 'visibilitychange', function () { if (document.hidden) { save(); lab.save(true); } });
+    lab.on(document, 'visibilitychange', function () { if (document.hidden) { if (flow && running) stop('اجرا متوقف شد؛ آخرین حرکت کامل حفظ شد.'); save(); lab.save(true); } });
     api.onDispose(function () {
       running = false;
+      if (interpreter) interpreter.stop();
       clearTimeout(timer); clearTimeout(resizeTimer); disarm();
       if (observer) observer.disconnect();
       if (choice) choice.clear();
@@ -451,7 +566,7 @@ var BlockKit = (function () {
       st.level = id;
       win.hidden = true; picker.hidden = true;
       scene.level(level);
-      scene.home();
+      if (flow) flowHome(); else scene.home();
       if (ws) { ws.updateToolbox(toolbox(def, level)); paletteStart(); load(saved(level)); }
       renderBar();
       lab.coach('');
@@ -461,6 +576,7 @@ var BlockKit = (function () {
 
     // ---------- اجرای گام‌به‌گام ----------
     function run() {
+      if (flow) { dispatch('start'); return; }
       if (running || !ws) return;
       win.hidden = true;
       var prog = compile(def, ws, maxOps);
@@ -488,10 +604,16 @@ var BlockKit = (function () {
     function stop(text) {
       if (!running) { if (text) lab.coach(text); return; }
       running = false;
+      if (interpreter) { interpreter.stop(); interpreter = null; }
+      if (flowBefore) {
+        scene.restore(copy(flowBefore.world)); flowVars = copy(flowBefore.vars); flowState().started = flowBefore.started; flowBefore = null;
+        if (scene.refresh) scene.refresh(flowVars);
+      }
       clearTimeout(timer); timer = 0;
       if (ws) ws.highlightBlock(null);
       sync();
       if (text) lab.coach(text);
+      if (flow) save();
     }
     function finish(prog) {
       running = false; sync();
@@ -533,7 +655,10 @@ var BlockKit = (function () {
     ], max: 30, empty: 'هنوز برنامه‌ای اجرا نشده است. بلوک بچین و ▶ را بزن.'});
 
     scene.level(level);
-    scene.home();
+    if (flow) flowHome(); else scene.home();
+    if (flow) lab.persist(function () {
+      if (ws && !loading) { var json = Blockly.serialization.workspaces.save(ws); if (JSON.stringify(json).length <= 20000) flowSave(json); }
+    });
     renderBar();
     sync();
   }
