@@ -36,7 +36,7 @@ var RLAB = (function () {
         for (var y = 0; y < lv.rows; y++) for (var x = 0; x < lv.cols; x++) {
           var wall = M.has(lv.walls, x, y);
           layer.grid.appendChild(K.svg('rect', {x: PAD + x * CELL + 3, y: PAD + y * CELL + 3, width: CELL - 6, height: CELL - 6, rx: 14, class: wall ? 'rb-wall' : (x + y) % 2 ? 'rb-cell rb-cell-b' : 'rb-cell'}));
-          if (wall) { var t = K.svg('text', {x: cx(x), y: cy(y) + 4, class: 'rb-emoji', 'text-anchor': 'middle', 'dominant-baseline': 'middle'}); t.textContent = '🧱'; layer.grid.appendChild(t); }
+          if (wall) layer.grid.appendChild(BlockKit.mark('wall', cx(x), cy(y), 72)); // شکل برداری؛ به قلم ایموجی سیستم وابسته نیست
         }
         layer.grid.appendChild(K.svg('circle', {cx: cx(lv.start.x), cy: cy(lv.start.y), r: 36, class: 'rb-home'}));
         if (lv.goal.type === 'shape') { // طرح کم‌رنگ شکل هدف: از خانهٔ شروع، بالا و راست
@@ -45,8 +45,8 @@ var RLAB = (function () {
         }
         starEls = {};
         lv.stars.forEach(function (s) {
-          var t = K.svg('text', {x: cx(s[0]), y: cy(s[1]) + 4, class: 'rb-emoji rb-star', 'text-anchor': 'middle', 'dominant-baseline': 'middle'});
-          t.textContent = '⭐';
+          var t = BlockKit.mark('star', cx(s[0]), cy(s[1]), 72);
+          t.classList.add('rb-star');
           layer.items.appendChild(t);
           starEls[s[0] + ',' + s[1]] = t;
         });
@@ -103,7 +103,7 @@ var RLAB = (function () {
 
 var LESSON = {
   id: 'lab-robot-blocks',
-  version: 2,
+  version: 4,                     // ۴: ستاره و آجرِ صحنه شکل برداری‌اند (Issue #7)؛ شناسه‌ها، مدل و state همان است. ۳ نامزد محلی PR #6 بود و رزرو است.
   contentMode: 'syllabus',
   layout: 'worksheet',            // لب‌کیت/بلوک‌کیت: برنامهٔ تمام‌صفحه و چالش‌ها در کشو؛ noStart ممنوع است
   durationMinutes: 60,

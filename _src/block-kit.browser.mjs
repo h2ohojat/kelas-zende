@@ -28,7 +28,12 @@ try {
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.waitForFunction(()=>window.hello);assert.equal(await f.locator('[data-lab="run"]').count(),0,'not started before init');
  await page.locator('#init').click();await f.locator('[data-lab="run"]').waitFor({state:'visible'});await f.locator('[data-lab="speed"]').click();
+ // Issue #7: essential board marks are rendered vector shapes, never emoji text that needs a system font.
+ const board=()=>f.locator('.lab-svg').evaluate(svg=>{const box=k=>{const g=svg.querySelector('[data-mark="'+k+'"]');if(!g)return 0;const r=g.getBoundingClientRect();return Math.min(r.width,r.height)};
+  return {emoji:BlockKit.emojiText(svg).length,stars:svg.querySelectorAll('[data-mark="star"] polygon').length,walls:svg.querySelectorAll('[data-mark="wall"] rect').length,got:svg.querySelectorAll('[data-mark="star"].got').length,star:box('star'),wall:box('wall')}});
+ let marks=await board();assert.equal(marks.emoji,0,'no emoji text on the board');assert.equal(marks.stars,1,'stage 1 star is a polygon');assert.ok(marks.star>15,'stage 1 star renders with a visible size');
  await move();await move();await run();await page.waitForFunction(()=>window.latest?.stars===3&&window.latest.res[1]?.done);
+ marks=await board();assert.equal(marks.got,1,'collected star stays visible with its collected state');
  await page.reload();await f.locator('[data-lab="run"]').waitFor({state:'visible'});assert.match(await f.locator('[data-bk="levels"]').innerText(),/✅/);assert.match(await f.locator('[data-lab="count"]').innerText(),/۲/);
  await run();await page.waitForFunction(()=>window.latest?.stars===3);assert.equal((await page.evaluate(()=>window.latest)).stars,3,'no duplicate stars after resume');
  await f.locator('[data-bk="win-next"]').click();await move();await move();await move();await ws.getByText('یک خانه جلو برو',{exact:false}).first().click();await palette.getByText('به راست بچرخ',{exact:false}).click();await run();
@@ -37,5 +42,7 @@ try {
  await page.setViewportSize({width:360,height:800});await f.locator('.bk-port').waitFor({state:'visible'});await ws.getByText('بار تکرار کن',{exact:false}).click();await move();await run();await page.waitForFunction(()=>window.latest?.stars===9);
  const saved=await page.evaluate(()=>window.latest);assert.equal(saved.res[0].state.solved.length,3);
  await page.reload();await f.locator('[data-lab="run"]').waitFor({state:'visible'});assert.match(await f.locator('[data-lab="count"]').innerText(),/۲/);assert.match(await f.locator('[data-bk="levels"]').innerText(),/✅.*۹/);
- assert.deepEqual(errors,[],'no console or CSP errors');console.log('PASS: delayed init, list restore, no repeated award, middle insertion, empty repeat, orientation and resume.');
+ await pick('around-wall');marks=await board();assert.equal(marks.emoji,0);assert.equal(marks.walls,1,'stage 4 wall is vector');assert.ok(marks.wall>15,'stage 4 wall renders with a visible size');assert.equal(marks.stars,1);
+ if(process.env.MARKS_SHOT)await page.screenshot({path:process.env.MARKS_SHOT});
+ assert.deepEqual(errors,[],'no console or CSP errors');console.log('PASS: vector board marks, delayed init, list restore, no repeated award, middle insertion, empty repeat, orientation and resume.');
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve))}

@@ -2,7 +2,6 @@
 .rb-cell{fill:#fff;stroke:#d5e1f2;stroke-width:2}
 .rb-cell-b{fill:#f2f7ff}
 .rb-wall{fill:#f3d9c4;stroke:#c98b5e;stroke-width:2}
-.rb-emoji{font-size:54px}
 .rb-home{fill:none;stroke:#2bb673;stroke-width:5;stroke-dasharray:10 8}
 .rb-ghost-shape{fill:none;stroke:#8aa6cc;stroke-width:6;stroke-dasharray:4 14;stroke-linecap:round;opacity:.8}
 .rb-star{transition:opacity .3s,transform .3s;transform-box:fill-box;transform-origin:center}
