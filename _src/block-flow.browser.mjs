@@ -44,6 +44,6 @@ try {
  await click('همین‌جا بمان');await page.setViewportSize({width:390,height:844});await click('📋 نتایج');await click('پایان آزمایش و گزارش نهایی');
  await f.getByRole('heading',{name:/به مقصد رسیدی/}).waitFor({state:'visible'});
  await page.waitForFunction(()=>window.latest?.completed===true);await page.reload();
- await f.getByRole('heading',{name:/به مقصد رسیدی/}).waitFor({state:'visible'});assert.equal((await page.evaluate(()=>window.latest)).stars,9);
+ await f.getByRole('heading',{name:/به مقصد رسیدی/}).waitFor({state:'visible'});assert.equal((await page.evaluate(()=>JSON.parse(localStorage.getItem('saved')))).stars,9);
  assert.deepEqual(errors,[]);console.log('PASS: delayed init, event/conditional/score, handler switch, resume, unique stars, final report.');
 } finally {await browser?.close();await new Promise(resolve=>server.close(resolve))}
