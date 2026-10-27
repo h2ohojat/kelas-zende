@@ -53,13 +53,14 @@ function lessonPlan() {
     const spec = JSON.parse(read(definition));
     if (!['lesson', 'worksheet'].includes(spec.kind) || !KZ.ID_RE.test(spec.id) || spec.id !== entry.name) throw Error(definition + ': نوع یا شناسهٔ محتوا نامعتبر است.');
     const modules = spec.modules || [];
-    if (!Array.isArray(modules) || modules.some((name) => !['code-lab', 'console-lab', 'lab-kit', 'block-kit'].includes(name))) throw Error(definition + ': ماژول ناشناخته؛ code-lab، console-lab، lab-kit یا block-kit مجاز است.');
+    if (!Array.isArray(modules) || modules.some((name) => !['code-lab', 'console-lab', 'lab-kit', 'block-kit', 'block-flow'].includes(name))) throw Error(definition + ': ماژول ناشناخته؛ code-lab، console-lab، lab-kit یا block-kit مجاز است.');
     // block-kit (برنامه‌نویسی بلوکی) روی lab-kit و کپی قفل‌شدهٔ Blockly ساخته می‌شود؛ مفسر متنی لازم ندارد.
-    const blocks = modules.includes('block-kit');
-    const sharedSources = modules.some((name) => name !== 'lab-kit' && name !== 'block-kit') ? ['code-interpreter.js'] : [];
+    const blocks = modules.includes('block-kit') || modules.includes('block-flow');
+    const sharedSources = modules.some((name) => ['code-lab', 'console-lab'].includes(name)) ? ['code-interpreter.js'] : [];
     if (modules.includes('code-lab')) sharedSources.push('js-code-lab.js');
     if (modules.includes('console-lab')) sharedSources.push('console-lab.js');
     if (modules.includes('lab-kit') || blocks) sharedSources.push('lab-kit.js');
+    if (modules.includes('block-flow')) sharedSources.push('block-flow.js');
     if (blocks) sharedSources.push('vendor/blockly/blockly.js', 'vendor/blockly/blockly-fa.js', 'block-kit.js');
     const sharedCss = [modules.includes('code-lab') && 'js-code-lab.css', (modules.includes('lab-kit') || blocks) && 'lab-kit.css', blocks && 'block-kit.css'].filter(Boolean);
     // sources: چند فایل منبع به همین ترتیب (مثلاً مدل، صحنه، درس)؛ source تک‌فایلی هم پذیرفته می‌شود.
